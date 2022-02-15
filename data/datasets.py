@@ -1,20 +1,24 @@
-import torch.utils.data as data
-import torch
+import os
+import logging
+from functools import partial
+from typing import Optional, Callable
+
+import urllib, shutil, zipfile, tarfile, gzip
+import accimage
+import PIL
 from PIL import Image
 import numpy as np
+import pandas
+import torch
+import torch.utils.data as data
+from torch.utils.model_zoo import tqdm
+from torchvision import get_image_backend
+from torchvision import transforms as transforms
 from torchvision.datasets import MNIST, CIFAR10, SVHN, FashionMNIST
 from torchvision.datasets.vision import VisionDataset
 from torchvision.datasets.utils import download_file_from_google_drive, check_integrity
-from functools import partial
-from typing import Optional, Callable
-from torch.utils.model_zoo import tqdm
-import PIL
-import tarfile
 
-import os
-import os.path
-import logging
-import torchvision.datasets.utils as utils
+from utils import mkdirs
 
 logging.basicConfig()
 logger = logging.getLogger()
@@ -22,14 +26,8 @@ logger.setLevel(logging.INFO)
 
 IMG_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm', '.tif', '.tiff', '.webp')
 
-def mkdirs(dirpath):
-    try:
-        os.makedirs(dirpath)
-    except Exception as _:
-        pass
 
 def accimage_loader(path):
-    import accimage
     try:
         return accimage.Image(path)
     except IOError:
@@ -45,15 +43,32 @@ def pil_loader(path):
 
 
 def default_loader(path):
-    from torchvision import get_image_backend
     if get_image_backend() == 'accimage':
         return accimage_loader(path)
     else:
         return pil_loader(path)
 
+
 class CustomTensorDataset(data.TensorDataset):
     def __getitem__(self, index):
         return tuple(tensor[index] for tensor in self.tensors) + (index,)
+
+
+def load_mnist_data(datadir):
+    transform = transforms.Compose([transforms.ToTensor()])
+
+    mnist_train_ds = MNIST_truncated(datadir, train=True, download=True, transform=transform)
+    mnist_test_ds = MNIST_truncated(datadir, train=False, download=True, transform=transform)
+
+    X_train, y_train = mnist_train_ds.data, mnist_train_ds.target
+    X_test, y_test = mnist_test_ds.data, mnist_test_ds.target
+
+    X_train = X_train.data.numpy()
+    y_train = y_train.data.numpy()
+    X_test = X_test.data.numpy()
+    y_test = y_test.data.numpy()
+
+    return (X_train, y_train, X_test, y_test)
 
 
 class MNIST_truncated(data.Dataset):
@@ -103,9 +118,6 @@ class MNIST_truncated(data.Dataset):
         # to return a PIL Image
         img = Image.fromarray(img.numpy(), mode='L')
 
-        # print("mnist img:", img)
-        # print("mnist target:", target)
-
         if self.transform is not None:
             img = self.transform(img)
 
@@ -116,6 +128,7 @@ class MNIST_truncated(data.Dataset):
 
     def __len__(self):
         return len(self.data)
+
 
 class FashionMNIST_truncated(data.Dataset):
 
@@ -164,9 +177,6 @@ class FashionMNIST_truncated(data.Dataset):
         # to return a PIL Image
         img = Image.fromarray(img.numpy(), mode='L')
 
-        # print("mnist img:", img)
-        # print("mnist target:", target)
-
         if self.transform is not None:
             img = self.transform(img)
 
@@ -177,6 +187,7 @@ class FashionMNIST_truncated(data.Dataset):
 
     def __len__(self):
         return len(self.data)
+
 
 class SVHN_custom(data.Dataset):
 
@@ -209,11 +220,6 @@ class SVHN_custom(data.Dataset):
         if self.dataidxs is not None:
             data = data[self.dataidxs]
             target = target[self.dataidxs]
-        # print("svhn data:", data)
-        # print("len svhn data:", len(data))
-        # print("type svhn data:", type(data))
-        # print("svhn target:", target)
-        # print("type svhn target", type(target))
         return data, target
 
     # def truncate_channel(self, index):
@@ -231,8 +237,6 @@ class SVHN_custom(data.Dataset):
             tuple: (image, target) where target is index of the target class.
         """
         img, target = self.data[index], self.target[index]
-        # print("svhn img:", img)
-        # print("svhn target:", target)
         # doing this so that it is consistent with all other datasets
         # to return a PIL Image
         img = Image.fromarray(np.transpose(img, (1, 2, 0)))
@@ -294,9 +298,8 @@ class CelebA_custom(VisionDataset):
 
     def __init__(self, root, dataidxs=None, split="train", target_type="attr", transform=None,
                  target_transform=None, download=False):
-        import pandas
         super(CelebA_custom, self).__init__(root, transform=transform,
-                                     target_transform=target_transform)
+                                            target_transform=target_transform)
         self.split = split
         if isinstance(target_type, list):
             self.target_type = target_type
@@ -357,7 +360,6 @@ class CelebA_custom(VisionDataset):
         return os.path.isdir(os.path.join(self.root, self.base_folder, "img_align_celeba"))
 
     def download(self):
-        import zipfile
 
         if self._check_integrity():
             print('Files already downloaded and verified')
@@ -384,10 +386,10 @@ class CelebA_custom(VisionDataset):
                 elif t == "landmarks":
                     target.append(self.landmarks_align[index, :])
                 else:
-                    # TODO: refactor with utils.verify_str_arg
                     raise ValueError("Target type \"{}\" is not recognized.".format(t))
         else:
-            X = PIL.Image.open(os.path.join(self.root, self.base_folder, "img_align_celeba", self.filename[self.dataidxs[index]]))
+            X = PIL.Image.open(
+                os.path.join(self.root, self.base_folder, "img_align_celeba", self.filename[self.dataidxs[index]]))
 
             target = []
             for t in self.target_type:
@@ -400,12 +402,10 @@ class CelebA_custom(VisionDataset):
                 elif t == "landmarks":
                     target.append(self.landmarks_align[self.dataidxs[index], :])
                 else:
-                    # TODO: refactor with utils.verify_str_arg
                     raise ValueError("Target type \"{}\" is not recognized.".format(t))
 
         if self.transform is not None:
             X = self.transform(X)
-        #print("target[0]:", target[0])
         if target:
             target = tuple(target) if len(target) > 1 else target[0]
 
@@ -413,7 +413,6 @@ class CelebA_custom(VisionDataset):
                 target = self.target_transform(target)
         else:
             target = None
-        #print("celeba target:", target)
         return X, target
 
     def __len__(self):
@@ -425,7 +424,6 @@ class CelebA_custom(VisionDataset):
     def extra_repr(self):
         lines = ["Target type: {target_type}", "Split: {split}"]
         return '\n'.join(lines).format(**self.__dict__)
-
 
 
 class CIFAR10_truncated(data.Dataset):
@@ -470,9 +468,6 @@ class CIFAR10_truncated(data.Dataset):
         """
         img, target = self.data[index], self.target[index]
 
-        # print("cifar10 img:", img)
-        # print("cifar10 target:", target)
-
         if self.transform is not None:
             img = self.transform(img)
 
@@ -483,6 +478,7 @@ class CIFAR10_truncated(data.Dataset):
 
     def __len__(self):
         return len(self.data)
+
 
 def gen_bar_updater() -> Callable[[int, int, int], None]:
     pbar = tqdm(total=None)
@@ -504,7 +500,6 @@ def download_url(url: str, root: str, filename: Optional[str] = None, md5: Optio
         filename (str, optional): Name to save the file under. If None, use the basename of the URL
         md5 (str, optional): MD5 checksum of the download. If None, do not check
     """
-    import urllib
 
     root = os.path.expanduser(root)
     if not filename:
@@ -516,7 +511,7 @@ def download_url(url: str, root: str, filename: Optional[str] = None, md5: Optio
     # check if file is already present locally
     if check_integrity(fpath, md5):
         print('Using downloaded and verified file: ' + fpath)
-    else:   # download the file
+    else:  # download the file
         try:
             print('Downloading ' + url + ' to ' + fpath)
             urllib.request.urlretrieve(
@@ -537,6 +532,7 @@ def download_url(url: str, root: str, filename: Optional[str] = None, md5: Optio
         # check integrity of downloaded file
         if not check_integrity(fpath, md5):
             raise RuntimeError("File not found or corrupted.")
+
 
 def _is_tarxz(filename: str) -> bool:
     return filename.endswith(".tar.xz")
@@ -590,12 +586,12 @@ def extract_archive(from_path: str, to_path: Optional[str] = None, remove_finish
 
 
 def download_and_extract_archive(
-    url: str,
-    download_root: str,
-    extract_root: Optional[str] = None,
-    filename: Optional[str] = None,
-    md5: Optional[str] = None,
-    remove_finished: bool = False,
+        url: str,
+        download_root: str,
+        extract_root: Optional[str] = None,
+        filename: Optional[str] = None,
+        md5: Optional[str] = None,
+        remove_finished: bool = False,
 ) -> None:
     download_root = os.path.expanduser(download_root)
     if extract_root is None:
@@ -608,6 +604,7 @@ def download_and_extract_archive(
     archive = os.path.join(download_root, filename)
     print("Extracting {} to {}".format(archive, extract_root))
     extract_archive(archive, extract_root, remove_finished)
+
 
 class FEMNIST(MNIST):
     """
@@ -642,8 +639,7 @@ class FEMNIST(MNIST):
 
         if self.dataidxs is not None:
             self.data = self.data[self.dataidxs]
-            self.targets = self.targets[self.dataidxs]        
-
+            self.targets = self.targets[self.dataidxs]
 
     def __getitem__(self, index):
         img, target = self.data[index], int(self.targets[index])
@@ -656,7 +652,6 @@ class FEMNIST(MNIST):
 
     def download(self):
         """Download the FEMNIST data if it doesn't exist in processed_folder already."""
-        import shutil
 
         if self._check_exists():
             return
@@ -692,12 +687,11 @@ class Generated(MNIST):
             self.targets = np.load("data/generated/y_train.npy")
         else:
             self.data = np.load("data/generated/X_test.npy")
-            self.targets = np.load("data/generated/y_test.npy")            
+            self.targets = np.load("data/generated/y_test.npy")
 
         if self.dataidxs is not None:
             self.data = self.data[self.dataidxs]
-            self.targets = self.targets[self.dataidxs]        
-
+            self.targets = self.targets[self.dataidxs]
 
     def __getitem__(self, index):
         data, target = self.data[index], self.targets[index]
@@ -707,13 +701,98 @@ class Generated(MNIST):
         return len(self.data)
 
 
-
 class genData(MNIST):
     def __init__(self, data, targets):
         self.data = data
         self.targets = targets
-    def __getitem__(self,index):
+
+    def __getitem__(self, index):
         data, target = self.data[index], self.targets[index]
         return data, target
+
     def __len__(self):
         return len(self.data)
+
+
+def load_fmnist_data(datadir):
+    transform = transforms.Compose([transforms.ToTensor()])
+
+    mnist_train_ds = FashionMNIST_truncated(datadir, train=True, download=True, transform=transform)
+    mnist_test_ds = FashionMNIST_truncated(datadir, train=False, download=True, transform=transform)
+
+    X_train, y_train = mnist_train_ds.data, mnist_train_ds.target
+    X_test, y_test = mnist_test_ds.data, mnist_test_ds.target
+
+    X_train = X_train.data.numpy()
+    y_train = y_train.data.numpy()
+    X_test = X_test.data.numpy()
+    y_test = y_test.data.numpy()
+
+    return (X_train, y_train, X_test, y_test)
+
+
+def load_svhn_data(datadir):
+    transform = transforms.Compose([transforms.ToTensor()])
+
+    svhn_train_ds = SVHN_custom(datadir, train=True, download=True, transform=transform)
+    svhn_test_ds = SVHN_custom(datadir, train=False, download=True, transform=transform)
+
+    X_train, y_train = svhn_train_ds.data, svhn_train_ds.target
+    X_test, y_test = svhn_test_ds.data, svhn_test_ds.target
+
+    # X_train = X_train.data.numpy()
+    # y_train = y_train.data.numpy()
+    # X_test = X_test.data.numpy()
+    # y_test = y_test.data.numpy()
+
+    return (X_train, y_train, X_test, y_test)
+
+
+def load_cifar10_data(datadir):
+    transform = transforms.Compose([transforms.ToTensor()])
+
+    cifar10_train_ds = CIFAR10_truncated(datadir, train=True, download=True, transform=transform)
+    cifar10_test_ds = CIFAR10_truncated(datadir, train=False, download=True, transform=transform)
+
+    X_train, y_train = cifar10_train_ds.data, cifar10_train_ds.target
+    X_test, y_test = cifar10_test_ds.data, cifar10_test_ds.target
+
+    # y_train = y_train.numpy()
+    # y_test = y_test.numpy()
+
+    return (X_train, y_train, X_test, y_test)
+
+
+def load_celeba_data(datadir):
+    transform = transforms.Compose([transforms.ToTensor()])
+
+    celeba_train_ds = CelebA_custom(datadir, split='train', target_type="attr", download=True, transform=transform)
+    celeba_test_ds = CelebA_custom(datadir, split='test', target_type="attr", download=True, transform=transform)
+
+    gender_index = celeba_train_ds.attr_names.index('Male')
+    y_train = celeba_train_ds.attr[:, gender_index:gender_index + 1].reshape(-1)
+    y_test = celeba_test_ds.attr[:, gender_index:gender_index + 1].reshape(-1)
+
+    # y_train = y_train.numpy()
+    # y_test = y_test.numpy()
+
+    return (None, y_train, None, y_test)
+
+
+def load_femnist_data(datadir):
+    transform = transforms.Compose([transforms.ToTensor()])
+
+    mnist_train_ds = FEMNIST(datadir, train=True, transform=transform, download=True)
+    mnist_test_ds = FEMNIST(datadir, train=False, transform=transform, download=True)
+
+    X_train, y_train, u_train = mnist_train_ds.data, mnist_train_ds.targets, mnist_train_ds.users_index
+    X_test, y_test, u_test = mnist_test_ds.data, mnist_test_ds.targets, mnist_test_ds.users_index
+
+    X_train = X_train.data.numpy()
+    y_train = y_train.data.numpy()
+    u_train = np.array(u_train)
+    X_test = X_test.data.numpy()
+    y_test = y_test.data.numpy()
+    u_test = np.array(u_test)
+
+    return (X_train, y_train, u_train, X_test, y_test, u_test)
