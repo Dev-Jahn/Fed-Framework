@@ -1,4 +1,21 @@
 import torch
+from torch import nn, Tensor
+import torch.nn.functional as F
+
+
+class OrthLoss(nn.CrossEntropyLoss):
+    def __init__(self, weight=None, size_average=None, ignore_index: int = -100,
+                 reduce=None, reduction: str = 'mean', label_smoothing: float = 0.0) -> None:
+        super(OrthLoss, self).__init__(weight, size_average, ignore_index, reduce, reduction, label_smoothing)
+
+    def forward(self, input: Tensor, target: Tensor, model: nn.Module, decay: float, device) -> Tensor:
+        celoss = F.cross_entropy(
+            input, target,
+            weight=self.weight, ignore_index=self.ignore_index,
+            reduction=self.reduction, label_smoothing=self.label_smoothing
+        )
+        oloss = decay * l2_reg_ortho(model, device)
+        return celoss + oloss
 
 
 def l2_reg_ortho(model, device):
