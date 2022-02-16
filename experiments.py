@@ -7,22 +7,20 @@ import os
 
 import numpy as np
 import torch
-from torch import optim, nn
 import wandb
 from torch.utils.data import ConcatDataset, DataLoader
 
-from alg.fedavg import local_train_net
-from alg.fednova import local_train_net_fednova
-from alg.fedprox import local_train_net_fedprox
-from alg.scaffold import local_train_net_scaffold
+from algs.fedavg import local_train_net
+from algs.fednova import local_train_net_fednova
+from algs.fedprox import local_train_net_fedprox
+from algs.scaffold import local_train_net_scaffold
 from data.dataloader import get_dataloader
 from data.partition import partition_data
-from metric.basic import compute_accuracy
-from models.model import PerceptronModel, FcNet, SimpleCNN, SimpleCNNMNIST, ModerateCNNMNIST, ModerateCNN
-from models.resnetcifar import ResNet50_cifar10
-from models.vggmodel import vgg11, vgg16
-from models.wideresnet import WideResNet
+from metrics.basic import compute_accuracy
+from models.nets import init_nets
 from utils import mkdirs
+
+DATASETS = ['mnist', 'fmnist', 'cifar10', 'svhn', 'celeba', 'femnist', 'generated', 'rcv1', 'SUSY', 'covtype', 'a9a']
 
 
 def get_args():
@@ -33,29 +31,33 @@ def get_args():
     # Model & Dataset
     parser.add_argument('--model', type=str, default='MLP', help='neural network used in training')
     parser.add_argument('--modeldir', type=str, required=False, default="./models/", help='Model directory path')
-    parser.add_argument('--dataset', type=str, default='mnist', help='dataset used for training')
+    parser.add_argument('--dataset', type=str, choices=DATASETS, help='dataset used for training')
     parser.add_argument('--datadir', type=str, required=False, default="./data/", help="Data directory")
+    parser.add_argument('--save_round', type=int, default=10, help="Save model once in n comm rounds")
     # Train, Hyperparams, Optimizer
     parser.add_argument('--batch-size', type=int, default=64, help='input batch size for training (default: 64)')
     parser.add_argument('--lr', type=float, default=0.01, help='learning rate (default: 0.01)')
     parser.add_argument('--epochs', type=int, default=5, help='number of local epochs')
     parser.add_argument('--dropout', type=float, required=False, default=0.0, help="Dropout probability. Default=0.0")
-    parser.add_argument('--optimizer', type=str, default='sgd', help='the optimizer')
+    parser.add_argument('--loss', type=str, choices=['ce', 'orth'], default='ce', help="Loss function")
+    parser.add_argument('--optimizer', type=str, choices=['adam', 'amsgrad', 'sgd'], default='sgd', help='Optimizer')
     parser.add_argument('--momentum', type=float, default=0, help='Parameter controlling the momentum SGD')
-    parser.add_argument('--nesterov', default=True, type=bool, help='nesterov momentum')
+    parser.add_argument('--nesterov', type=bool, default=True, help='nesterov momentum')
     parser.add_argument('--mu', type=float, default=1, help='the mu parameter for fedprox')
-    parser.add_argument('--reg', type=float, default=1e-5, help="L2 regularization strength")
+    parser.add_argument('--reg', type=float, default=1e-5, help="L2 losses strength")
     # Averaging algorithms
-    parser.add_argument('--alg', type=str, default='fedavg', help='communication strategy: fedavg/fedprox')
+    parser.add_argument('--alg', type=str, choices=['fedavg', 'fedprox', 'scaffold', 'fednova'],
+                        help='communication strategy')
     parser.add_argument('--comm_round', type=int, default=50, help='number of maximum communication roun')
     parser.add_argument('--is_same_initial', type=int, default=1, help='All models with same parameters in fedavg')
     # Data partitioning
     parser.add_argument('--n_parties', type=int, default=2, help='number of workers in a distributed cluster')
-    parser.add_argument('--partition', type=str, default='homo', help='the data partitioning strategy')
+    parser.add_argument('--partition', type=str, choices=[], default='homo',
+                        help='the data partitioning strategy')
     parser.add_argument('--beta', type=float, default=0.5,
                         help='The parameter for the dirichlet distribution for data partitioning')
     parser.add_argument('--noise', type=float, default=0, help='how much noise we add to some party')
-    parser.add_argument('--noise_type', type=str, default='level',
+    parser.add_argument('--noise_type', type=str, choices=['space', 'level'], default='level',
                         help='Different level of noise or different space of noise')
     parser.add_argument('--sample', type=float, default=1, help='Sample ratio for each communication round')
     # Misc.
@@ -66,141 +68,6 @@ def get_args():
     parser.add_argument('--log_file_name', type=str, default=None, help='The log file name')
     args = parser.parse_args()
     return args
-
-
-def init_nets(dropout_p, n_parties, args):
-    nets = {net_i: None for net_i in range(n_parties)}
-
-    for net_i in range(n_parties):
-        if args.model == 'WRN':
-            if args.dataset == 'cifar10':
-                net = WideResNet(depth=28, num_classes=10, widen_factor=10, dropRate=0.3)
-            elif args.dataset == 'cifar100':
-                net = WideResNet(depth=28, num_classes=100, widen_factor=10, dropRate=0.3)
-            else:
-                raise NotImplementedError('Unimplemented')
-        elif args.dataset == "generated":
-            net = PerceptronModel()
-        elif args.model == "mlp":
-            if args.dataset == 'covtype':
-                input_size = 54
-                output_size = 2
-                hidden_sizes = [32, 16, 8]
-            elif args.dataset == 'a9a':
-                input_size = 123
-                output_size = 2
-                hidden_sizes = [32, 16, 8]
-            elif args.dataset == 'rcv1':
-                input_size = 47236
-                output_size = 2
-                hidden_sizes = [32, 16, 8]
-            elif args.dataset == 'SUSY':
-                input_size = 18
-                output_size = 2
-                hidden_sizes = [16, 8]
-            net = FcNet(input_size, hidden_sizes, output_size, dropout_p)
-        elif args.model == "vgg":
-            net = vgg11()
-        elif args.model == "simple-cnn":
-            if args.dataset in ("cifar10", "cinic10", "svhn"):
-                net = SimpleCNN(input_dim=(16 * 5 * 5), hidden_dims=[120, 84], output_dim=10)
-            elif args.dataset in ("mnist", 'femnist', 'fmnist'):
-                net = SimpleCNNMNIST(input_dim=(16 * 4 * 4), hidden_dims=[120, 84], output_dim=10)
-            elif args.dataset == 'celeba':
-                net = SimpleCNN(input_dim=(16 * 5 * 5), hidden_dims=[120, 84], output_dim=2)
-        elif args.model == "vgg-9":
-            if args.dataset in ("mnist", 'femnist'):
-                net = ModerateCNNMNIST()
-            elif args.dataset in ("cifar10", "cinic10", "svhn"):
-                # print("in moderate cnn")
-                net = ModerateCNN()
-            elif args.dataset == 'celeba':
-                net = ModerateCNN(output_dim=2)
-        elif args.model == "resnet":
-            net = ResNet50_cifar10()
-        elif args.model == "vgg16":
-            net = vgg16()
-        else:
-            print("not supported yet")
-            exit(1)
-        nets[net_i] = net
-
-    model_meta_data = []
-    layer_type = []
-    for (k, v) in nets[0].state_dict().items():
-        model_meta_data.append(v.shape)
-        layer_type.append(k)
-
-    return nets, model_meta_data, layer_type
-
-
-def train_net(net_id, net, train_dataloader, test_dataloader, epochs, lr, args_optimizer, device="cpu"):
-    logger.info('Training network %s' % str(net_id))
-
-    train_acc = compute_accuracy(net, train_dataloader, device=device)
-    test_acc, conf_matrix = compute_accuracy(net, test_dataloader, get_confusion_matrix=True, device=device)
-
-    logger.info('>> Pre-Training Training accuracy: {}'.format(train_acc))
-    logger.info('>> Pre-Training Test accuracy: {}'.format(test_acc))
-
-    if args_optimizer == 'adam':
-        optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=lr, weight_decay=args.reg)
-    elif args_optimizer == 'amsgrad':
-        optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=lr, weight_decay=args.reg,
-                               amsgrad=True)
-    elif args_optimizer == 'sgd':
-        optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=lr, momentum=args.momentum,
-                              weight_decay=args.reg)
-    criterion = nn.CrossEntropyLoss().to(device)
-
-    cnt = 0
-    if type(train_dataloader) == type([1]):
-        pass
-    else:
-        train_dataloader = [train_dataloader]
-
-    for epoch in range(epochs):
-        epoch_loss_collector = []
-        for tmp in train_dataloader:
-            for batch_idx, (x, target) in enumerate(tmp):
-                x, target = x.to(device), target.to(device)
-
-                optimizer.zero_grad()
-                x.requires_grad = True
-                target.requires_grad = False
-                target = target.long()
-
-                out = net(x)
-                loss = criterion(out, target)
-
-                loss.backward()
-                optimizer.step()
-
-                cnt += 1
-                epoch_loss_collector.append(loss.item())
-
-        epoch_loss = sum(epoch_loss_collector) / len(epoch_loss_collector)
-        logger.info('Epoch: %d Loss: %f' % (epoch, epoch_loss))
-
-        # train_acc = compute_accuracy(net, train_dataloader, device=device)
-        # test_acc, conf_matrix = compute_accuracy(net, test_dataloader, get_confusion_matrix=True, device=device)
-
-        # if epoch % 10 == 0:
-        #     logger.info('Epoch: %d Loss: %f' % (epoch, epoch_loss))
-        #     train_acc = compute_accuracy(net, train_dataloader, device=device)
-        #     test_acc, conf_matrix = compute_accuracy(net, test_dataloader, get_confusion_matrix=True, device=device)
-        #
-        #     logger.info('>> Training accuracy: %f' % train_acc)
-        #     logger.info('>> Test accuracy: %f' % test_acc)
-
-    train_acc = compute_accuracy(net, train_dataloader, device=device)
-    test_acc, conf_matrix = compute_accuracy(net, test_dataloader, get_confusion_matrix=True, device=device)
-
-    logger.info('>> Training accuracy: %f' % train_acc)
-    logger.info('>> Test accuracy: %f' % test_acc)
-
-    logger.info(' ** Training complete **')
-    return train_acc, test_acc
 
 
 if __name__ == '__main__':
