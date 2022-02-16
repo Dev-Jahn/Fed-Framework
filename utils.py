@@ -4,7 +4,7 @@ import logging
 import numpy as np
 
 from data.partition import partition_data
-from models.model import *
+from models.cnns import *
 
 logging.basicConfig()
 logger = logging.getLogger()
