@@ -5,7 +5,7 @@ import torch
 from torch import optim, nn
 
 from experiments import logger, args
-from metric.basic import compute_accuracy
+from metrics.basic import compute_accuracy
 from data.dataloader import get_dataloader
 
 
