@@ -2,6 +2,11 @@ import torch
 from torch import nn, Tensor
 import torch.nn.functional as F
 
+def build_loss(name, *args, **kwargs):
+    if name == 'ce':
+        return nn.CrossEntropyLoss(*args, **kwargs)
+    elif name == 'orth':
+        return OrthLoss(*args, **kwargs)
 
 class OrthLoss(nn.CrossEntropyLoss):
     def __init__(self, weight=None, size_average=None, ignore_index: int = -100,

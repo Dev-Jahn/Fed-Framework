@@ -1,11 +1,16 @@
-from torch import optim, nn
+import logging
 
-from experiments import logger, args
+from torch import optim
+
 from data.dataloader import get_dataloader
+from losses import build_loss
 from metrics.basic import compute_accuracy
 
+logging.basicConfig()
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
-def train_net(net_id, net, train_dataloader, test_dataloader, epochs, lr, args_optimizer, device="cpu"):
+def train_net(net_id, net, train_dataloader, test_dataloader, args, device="cpu"):
     logger.info('Training network %s' % str(net_id))
 
     train_acc = compute_accuracy(net, train_dataloader, device=device)
@@ -14,15 +19,15 @@ def train_net(net_id, net, train_dataloader, test_dataloader, epochs, lr, args_o
     logger.info('>> Pre-Training Training accuracy: {}'.format(train_acc))
     logger.info('>> Pre-Training Test accuracy: {}'.format(test_acc))
 
-    if args_optimizer == 'adam':
-        optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=lr, weight_decay=args.reg)
-    elif args_optimizer == 'amsgrad':
-        optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=lr, weight_decay=args.reg,
+    if args.optimizer == 'adam':
+        optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=args.lr, weight_decay=args.reg)
+    elif args.optimizer == 'amsgrad':
+        optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=args.lr, weight_decay=args.reg,
                                amsgrad=True)
-    elif args_optimizer == 'sgd':
-        optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=lr, momentum=args.momentum,
+    elif args.optimizer == 'sgd':
+        optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=args.lr, momentum=args.momentum,
                               weight_decay=args.reg)
-    criterion = nn.CrossEntropyLoss().to(device)
+    criterion = build_loss(args.loss)
 
     cnt = 0
     if type(train_dataloader) == type([1]):
@@ -30,7 +35,7 @@ def train_net(net_id, net, train_dataloader, test_dataloader, epochs, lr, args_o
     else:
         train_dataloader = [train_dataloader]
 
-    for epoch in range(epochs):
+    for epoch in range(args.epochs):
         epoch_loss_collector = []
         for tmp in train_dataloader:
             for batch_idx, (x, target) in enumerate(tmp):
@@ -42,8 +47,10 @@ def train_net(net_id, net, train_dataloader, test_dataloader, epochs, lr, args_o
                 target = target.long()
 
                 out = net(x)
-                loss = criterion(out, target)
-
+                if args.loss == 'orth':
+                    loss = criterion(out, target, net, 1e-2, device)
+                else:
+                    loss = criterion(out, target)
                 loss.backward()
                 optimizer.step()
 
@@ -98,9 +105,7 @@ def local_train_net(nets, selected, args, net_dataidx_map, test_dl=None, device=
             train_dl_local, test_dl_local, _, _ = get_dataloader(args.dataset, args.datadir, args.batch_size, 32,
                                                                  dataidxs, noise_level)
         train_dl_global, test_dl_global, _, _ = get_dataloader(args.dataset, args.datadir, args.batch_size, 32)
-        n_epoch = args.epochs
-
-        trainacc, testacc = train_net(net_id, net, train_dl_local, test_dl, n_epoch, args.lr, args.optimizer,
+        trainacc, testacc = train_net(net_id, net, train_dl_local, test_dl, args,
                                       device=device)
         logger.info("net %d final test acc %f" % (net_id, testacc))
         avg_acc += testacc
