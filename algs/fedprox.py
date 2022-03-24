@@ -1,13 +1,17 @@
+import logging
+
 import torch
 from torch import optim, nn
 
-from experiments import logger, args
 from metrics.basic import compute_accuracy
 from data.dataloader import get_dataloader
 
+logging.basicConfig()
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
-def train_net_fedprox(net_id, net, global_net, train_dataloader, test_dataloader, epochs, lr, args_optimizer, mu,
-                      device="cpu"):
+
+def train_net_fedprox(net_id, net, global_net, train_dataloader, test_dataloader, epochs, lr, mu, device, args):
     logger.info('Training network %s' % str(net_id))
     logger.info('n_training: %d' % len(train_dataloader))
     logger.info('n_test: %d' % len(test_dataloader))
@@ -18,12 +22,12 @@ def train_net_fedprox(net_id, net, global_net, train_dataloader, test_dataloader
     logger.info('>> Pre-Training Training accuracy: {}'.format(train_acc))
     logger.info('>> Pre-Training Test accuracy: {}'.format(test_acc))
 
-    if args_optimizer == 'adam':
+    if args.optimizer == 'adam':
         optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=lr, weight_decay=args.reg)
-    elif args_optimizer == 'amsgrad':
+    elif args.optimizer == 'amsgrad':
         optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=lr, weight_decay=args.reg,
                                amsgrad=True)
-    elif args_optimizer == 'sgd':
+    elif args.optimizer == 'sgd':
         optimizer = optim.SGD(filter(lambda p: p.requires_grad, net.parameters()), lr=lr, momentum=args.momentum,
                               weight_decay=args.reg)
 
@@ -104,8 +108,10 @@ def local_train_net_fedprox(nets, selected, global_model, args, net_dataidx_map,
         train_dl_global, test_dl_global, _, _ = get_dataloader(args.dataset, args.datadir, args.batch_size, 32)
         n_epoch = args.epochs
 
-        trainacc, testacc = train_net_fedprox(net_id, net, global_model, train_dl_local, test_dl, n_epoch, args.lr,
-                                              args.optimizer, args.mu, device=device)
+        trainacc, testacc = train_net_fedprox(
+            net_id, net, global_model, train_dl_local, test_dl,
+            n_epoch, args.lr, args.mu, device, args
+        )
         logger.info("net %d final test acc %f" % (net_id, testacc))
         avg_acc += testacc
     avg_acc /= len(selected)

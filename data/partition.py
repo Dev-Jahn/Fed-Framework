@@ -1,6 +1,7 @@
 import random
 
 import numpy as np
+import torch
 from sklearn.datasets import load_svmlight_file
 
 from data.datasets import load_mnist_data, load_fmnist_data, load_svhn_data, load_cifar10_data, load_celeba_data, \
@@ -293,3 +294,13 @@ def partition_data(dataset, datadir, logdir, partition, n_parties, beta=0.4):
 
     traindata_cls_counts = record_net_data_stats(y_train, net_dataidx_map, logdir)
     return (X_train, y_train, X_test, y_test, net_dataidx_map, traindata_cls_counts)
+
+
+def get_partition_dict(dataset, partition, n_parties, init_seed=0, datadir='./data', logdir='./logs', beta=0.5):
+    seed = init_seed
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    X_train, y_train, X_test, y_test, net_dataidx_map, traindata_cls_counts = partition_data(
+        dataset, datadir, logdir, partition, n_parties, beta=beta
+    )
+    return net_dataidx_map

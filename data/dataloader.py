@@ -1,6 +1,7 @@
 from math import sqrt
 
 import torch
+import torch.nn.functional as F
 from torch.autograd import Variable
 from torch.utils import data as data
 from torchvision import transforms as transforms

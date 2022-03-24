@@ -1,16 +1,18 @@
 import copy
+import logging
 from math import pow
 
 import torch
 from torch import optim, nn
 
-from experiments import logger, args
 from metrics.basic import compute_accuracy
 from data.dataloader import get_dataloader
 
+logging.basicConfig()
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
-def train_net_fednova(net_id, net, global_model, train_dataloader, test_dataloader, epochs, lr, args_optimizer,
-                      device="cpu"):
+def train_net_fednova(net_id, net, global_model, train_dataloader, test_dataloader, epochs, lr, device, args):
     logger.info('Training network %s' % str(net_id))
 
     train_acc = compute_accuracy(net, train_dataloader, device=device)
@@ -102,7 +104,7 @@ def local_train_net_fednova(nets, selected, global_model, args, net_dataidx_map,
         n_epoch = args.epochs
 
         trainacc, testacc, a_i, d_i = train_net_fednova(net_id, net, global_model, train_dl_local, test_dl, n_epoch,
-                                                        args.lr, args.optimizer, device=device)
+                                                        args.lr, device, args)
 
         a_list.append(a_i)
         d_list.append(d_i)

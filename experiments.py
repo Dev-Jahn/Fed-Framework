@@ -52,8 +52,10 @@ def get_args():
     parser.add_argument('--is_same_initial', type=int, default=1, help='All models with same parameters in fedavg')
     # Data partitioning
     parser.add_argument('--n_parties', type=int, default=2, help='number of workers in a distributed cluster')
-    parser.add_argument('--partition', type=str, choices=[], default='homo',
-                        help='the data partitioning strategy')
+    parser.add_argument('--partition', type=str,
+                        choices=['homo', 'noniid-labeldir', 'iid-diff-quantity', 'mixed', 'real', 'femnist'] \
+                                + ['noniid-#label' + str(i) for i in range(10)],
+                        default='homo', help='the data partitioning strategy')
     parser.add_argument('--beta', type=float, default=0.5,
                         help='The parameter for the dirichlet distribution for data partitioning')
     parser.add_argument('--noise', type=float, default=0, help='how much noise we add to some party')
@@ -72,7 +74,7 @@ def get_args():
 
 if __name__ == '__main__':
     args = get_args()
-    wandb.init(project=args.name)
+    # wandb.init(project=args.name)
     mkdirs(args.logdir)
     mkdirs(args.modeldir)
     if args.log_file_name is None:
@@ -155,7 +157,7 @@ if __name__ == '__main__':
 
     if args.alg == 'fedavg':
         logger.info("Initializing nets")
-        nets, local_model_meta_data, layer_type = init_nets(args.dropout_p, args.n_parties, args)
+        nets, local_model_meta_data, layer_type = init_nets(args.dropout, args.n_parties, args)
         global_models, global_model_meta_data, global_layer_type = init_nets(0, 1, args)
         global_model = global_models[0]
 
@@ -209,7 +211,7 @@ if __name__ == '__main__':
 
     elif args.alg == 'fedprox':
         logger.info("Initializing nets")
-        nets, local_model_meta_data, layer_type = init_nets(args.dropout_p, args.n_parties, args)
+        nets, local_model_meta_data, layer_type = init_nets(args.dropout, args.n_parties, args)
         global_models, global_model_meta_data, global_layer_type = init_nets(0, 1, args)
         global_model = global_models[0]
 
@@ -264,11 +266,11 @@ if __name__ == '__main__':
 
     elif args.alg == 'scaffold':
         logger.info("Initializing nets")
-        nets, local_model_meta_data, layer_type = init_nets(args.dropout_p, args.n_parties, args)
+        nets, local_model_meta_data, layer_type = init_nets(args.dropout, args.n_parties, args)
         global_models, global_model_meta_data, global_layer_type = init_nets(0, 1, args)
         global_model = global_models[0]
 
-        c_nets, _, _ = init_nets(args.dropout_p, args.n_parties, args)
+        c_nets, _, _ = init_nets(args.dropout, args.n_parties, args)
         c_globals, _, _ = init_nets(0, 1, args)
         c_global = c_globals[0]
         c_global_para = c_global.state_dict()
@@ -326,7 +328,7 @@ if __name__ == '__main__':
 
     elif args.alg == 'fednova':
         logger.info("Initializing nets")
-        nets, local_model_meta_data, layer_type = init_nets(args.dropout_p, args.n_parties, args)
+        nets, local_model_meta_data, layer_type = init_nets(args.dropout, args.n_parties, args)
         global_models, global_model_meta_data, global_layer_type = init_nets(0, 1, args)
         global_model = global_models[0]
 
@@ -417,7 +419,7 @@ if __name__ == '__main__':
 
     elif args.alg == 'local_training':
         logger.info("Initializing nets")
-        nets, local_model_meta_data, layer_type = init_nets(args.dropout_p, args.n_parties, args)
+        nets, local_model_meta_data, layer_type = init_nets(args.dropout, args.n_parties, args)
         arr = np.arange(args.n_parties)
         local_train_net(nets, arr, args, net_dataidx_map, test_dl=test_dl_global, device=device)
     else:
