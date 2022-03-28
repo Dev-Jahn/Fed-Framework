@@ -1,7 +1,11 @@
+import logging
+
 from models.cnns import PerceptronModel, FcNet, SimpleCNN, SimpleCNNMNIST, ModerateCNNMNIST, ModerateCNN
 from models.resnetcifar import ResNet50_cifar10
 from models.vggmodel import vgg11, vgg16
 from models.wideresnet import WideResNet
+
+logger = logging.getLogger(__name__)
 
 
 def init_nets(dropout_p, n_parties, args):
@@ -48,7 +52,6 @@ def init_nets(dropout_p, n_parties, args):
             if args.dataset in ("mnist", 'femnist'):
                 net = ModerateCNNMNIST()
             elif args.dataset in ("cifar10", "cinic10", "svhn"):
-                # print("in moderate cnn")
                 net = ModerateCNN()
             elif args.dataset == 'celeba':
                 net = ModerateCNN(output_dim=2)
@@ -57,7 +60,7 @@ def init_nets(dropout_p, n_parties, args):
         elif args.model == "vgg16":
             net = vgg16()
         else:
-            print("not supported yet")
+            logger.error(f'Model \"{args.model}\" is not supported.')
             exit(1)
         nets[net_i] = net
 

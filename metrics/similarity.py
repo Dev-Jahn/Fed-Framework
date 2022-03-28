@@ -49,12 +49,12 @@ def kernel_CKA(X, Y, sigma=None):
     return hsic / (var1 * var2)
 
 
-if __name__=='__main__':
-    X = np.random.randn(100, 64)
-    Y = np.random.randn(100, 64)
-
-    print('Linear CKA, between X and Y: {}'.format(linear_CKA(X, Y)))
-    print('Linear CKA, between X and X: {}'.format(linear_CKA(X, X)))
-
-    print('RBF Kernel CKA, between X and Y: {}'.format(kernel_CKA(X, Y)))
-    print('RBF Kernel CKA, between X and X: {}'.format(kernel_CKA(X, X)))
+# if __name__=='__main__':
+#     X = np.random.randn(100, 64)
+#     Y = np.random.randn(100, 64)
+#
+#     print('Linear CKA, between X and Y: {}'.format(linear_CKA(X, Y)))
+#     print('Linear CKA, between X and X: {}'.format(linear_CKA(X, X)))
+#
+#     print('RBF Kernel CKA, between X and Y: {}'.format(kernel_CKA(X, Y)))
+#     print('RBF Kernel CKA, between X and X: {}'.format(kernel_CKA(X, X)))

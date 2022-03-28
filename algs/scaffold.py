@@ -141,7 +141,6 @@ def local_train_net_scaffold(nets, selected, global_model, c_nets, c_global, arg
         elif c_global_para[key].type() == 'torch.cuda.LongTensor':
             c_global_para[key] += total_delta[key].type(torch.cuda.LongTensor)
         else:
-            # print(c_global_para[key].type())
             c_global_para[key] += total_delta[key]
     c_global.load_state_dict(c_global_para)
 

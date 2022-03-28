@@ -119,7 +119,7 @@ if __name__ == '__main__':
     train_dl_global, test_dl_global, train_ds_global, test_ds_global = get_dataloader(
         args.dataset, args.datadir, args.batch_size, 32
     )
-    print("Global Trainset size:", len(train_ds_global))
+    logger.info("Global Trainset size:", len(train_ds_global))
     # test_dl = data.DataLoader(dataset=test_ds_global, batch_size=32, shuffle=False)
 
     train_all_in_list = []
@@ -301,7 +301,6 @@ if __name__ == '__main__':
 
             local_train_net_scaffold(nets, selected, global_model, c_nets, c_global, args, net_dataidx_map,
                                      test_dl=test_dl_global, device=device)
-            # local_train_net(nets, args, net_dataidx_map, local_split=False, device=device)
 
             # update global model
             total_data_points = sum([len(net_dataidx_map[r]) for r in selected])
@@ -372,7 +371,6 @@ if __name__ == '__main__':
             _, a_list, d_list, n_list = local_train_net_fednova(nets, selected, global_model, args, net_dataidx_map,
                                                                 test_dl=test_dl_global, device=device)
             total_n = sum(n_list)
-            # print("total_n:", total_n)
             d_total_round = copy.deepcopy(global_model.state_dict())
             for key in d_total_round:
                 d_total_round[key] = 0.0
@@ -380,15 +378,7 @@ if __name__ == '__main__':
             for i in range(len(selected)):
                 d_para = d_list[i]
                 for key in d_para:
-                    # if d_total_round[key].type == 'torch.LongTensor':
-                    #    d_total_round[key] += (d_para[key] * n_list[i] / total_n).type(torch.LongTensor)
-                    # else:
                     d_total_round[key] += d_para[key] * n_list[i] / total_n
-
-            # for i in range(len(selected)):
-            #     d_total_round = d_total_round + d_list[i] * n_list[i] / total_n
-
-            # local_train_net(nets, args, net_dataidx_map, local_split=False, device=device)
 
             # update global model
             coeff = 0.0
@@ -397,14 +387,11 @@ if __name__ == '__main__':
 
             updated_model = global_model.state_dict()
             for key in updated_model:
-                # print(updated_model[key])
                 if updated_model[key].type() == 'torch.LongTensor':
                     updated_model[key] -= (coeff * d_total_round[key]).type(torch.LongTensor)
                 elif updated_model[key].type() == 'torch.cuda.LongTensor':
                     updated_model[key] -= (coeff * d_total_round[key]).type(torch.cuda.LongTensor)
                 else:
-                    # print(updated_model[key].type())
-                    # print((coeff*d_total_round[key].type()))
                     updated_model[key] -= coeff * d_total_round[key]
             global_model.load_state_dict(updated_model)
 
