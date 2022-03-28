@@ -1,7 +1,7 @@
 wandb login
 python experiments.py --name test \
 --model WRN --dataset cifar10 --datadir ~/data \
---batch-size 128 --lr 0.1 --epochs 10 --dropout 0.3 --optimizer sgd --momentum 0.9 -loss ce\
+--batch-size 128 --lr 0.1 --epochs 10 --dropout 0.3 --optimizer sgd --momentum 0.9 --loss ce \
 --alg fedavg --comm_round 50 \
 --n_parties 5 --partition noniid-labeldir --beta 0.5 \
 --ngpu 1 --device cuda:0
