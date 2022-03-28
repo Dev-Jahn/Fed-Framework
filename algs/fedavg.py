@@ -6,9 +6,7 @@ from data.dataloader import get_dataloader
 from losses import build_loss
 from metrics.basic import compute_accuracy
 
-logging.basicConfig()
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
 
 def train_net(net_id, net, train_dataloader, test_dataloader, args, device="cpu"):
     logger.info('Training network %s' % str(net_id))

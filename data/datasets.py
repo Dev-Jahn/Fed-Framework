@@ -20,9 +20,7 @@ from torchvision.datasets.utils import download_file_from_google_drive, check_in
 
 from utils import mkdirs
 
-logging.basicConfig()
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
 
 IMG_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm', '.tif', '.tiff', '.webp')
 

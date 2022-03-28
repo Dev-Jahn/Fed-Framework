@@ -7,9 +7,7 @@ from torch import optim, nn
 from metrics.basic import compute_accuracy
 from data.dataloader import get_dataloader
 
-logging.basicConfig()
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
 
 
 def train_net_scaffold(net_id, net, global_model, c_local, c_global, train_dataloader, test_dataloader, epochs, lr,

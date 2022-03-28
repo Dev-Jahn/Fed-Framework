@@ -8,9 +8,7 @@ from torch import optim, nn
 from metrics.basic import compute_accuracy
 from data.dataloader import get_dataloader
 
-logging.basicConfig()
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
 
 def train_net_fednova(net_id, net, global_model, train_dataloader, test_dataloader, epochs, lr, device, args):
     logger.info('Training network %s' % str(net_id))

@@ -4,6 +4,7 @@ import copy
 import datetime
 import logging
 import os
+import sys
 
 import numpy as np
 import torch
@@ -67,58 +68,58 @@ def get_args():
     parser.add_argument('--device', type=str, default='cuda:0', help='The device to run the program')
     parser.add_argument('--init_seed', type=int, default=0, help="Random seed")
     parser.add_argument('--logdir', type=str, required=False, default="./logs/", help='Log directory path')
-    parser.add_argument('--log_file_name', type=str, default=None, help='The log file name')
     args = parser.parse_args()
     return args
 
 
 if __name__ == '__main__':
     args = get_args()
-    # wandb.init(project=args.name)
+    # Logging
     mkdirs(args.logdir)
     mkdirs(args.modeldir)
-    if args.log_file_name is None:
-        argument_path = 'experiment_arguments-%s.json' % datetime.datetime.now().strftime("%Y-%m-%d-%H:%M-%S")
-    else:
-        argument_path = args.log_file_name + '.json'
-    with open(os.path.join(args.logdir, argument_path), 'w') as f:
+    args_path = f'{args.name}_arguments-{datetime.datetime.now().strftime("%Y-%m-%d-%H:%M-%S")}.json'
+    with open(os.path.join(args.logdir, args_path), 'w') as f:
         json.dump(str(args), f)
-    device = torch.device(args.device)
-    for handler in logging.root.handlers[:]:
-        logging.root.removeHandler(handler)
-
-    if args.log_file_name is None:
-        args.log_file_name = 'experiment_log-%s' % (datetime.datetime.now().strftime("%Y-%m-%d-%H:%M-%S"))
-    log_path = args.log_file_name + '.log'
+    log_path = f'{args.name}_log-{datetime.datetime.now().strftime("%Y-%m-%d-%H:%M-%S")}.log'
+    formatter = logging.Formatter(
+        fmt='%(asctime)s|%(levelname)-8s|%(message)s',
+        datefmt='%m-%d %H:%M'
+    )
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+    file_debug_handler = logging.FileHandler(log_path, mode='w')
+    file_debug_handler.setLevel(logging.DEBUG)
+    file_debug_handler.setFormatter(formatter)
     logging.basicConfig(
-        filename=os.path.join(args.logdir, log_path),
-        # filename='/home/qinbin/test.log',
-        format='%(asctime)s %(levelname)-8s %(message)s',
-        datefmt='%m-%d %H:%M', level=logging.DEBUG, filemode='w')
-
+        level=logging.DEBUG,
+        handlers=[console_handler, file_debug_handler]
+    )
     logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)
-    logger.info(device)
+    logging.getLevelName(logger.level)
+
+    # Wandb
+    # wandb.init(project=args.name)
+
+    # Device
+    device = torch.device(args.device)
+    logger.info(f'Device: {device}')
 
     # Set random seeds
-    logger.info("#" * 100)
+    logger.info(f'Seed: {args.init_seed}')
     seed = args.init_seed
     np.random.seed(seed)
     torch.manual_seed(seed)
+    logger.info("#" * 80)
+
+    # Data partitioning
     logger.info("Partitioning data")
     X_train, y_train, X_test, y_test, net_dataidx_map, traindata_cls_counts = partition_data(
         args.dataset, args.datadir, args.logdir, args.partition, args.n_parties, beta=args.beta)
-
-    n_classes = len(np.unique(y_train))
-
     train_dl_global, test_dl_global, train_ds_global, test_ds_global = get_dataloader(
         args.dataset, args.datadir, args.batch_size, 32
     )
-
-    print("len train_dl_global:", len(train_ds_global))
-
-    data_size = len(test_ds_global)
-
+    print("Global Trainset size:", len(train_ds_global))
     # test_dl = data.DataLoader(dataset=test_ds_global, batch_size=32, shuffle=False)
 
     train_all_in_list = []

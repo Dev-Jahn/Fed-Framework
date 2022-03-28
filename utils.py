@@ -3,9 +3,7 @@ import logging
 
 from models.cnns import *
 
-logging.basicConfig()
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
 
 
 def mkdirs(dirpath):
