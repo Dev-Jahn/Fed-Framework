@@ -20,9 +20,7 @@ from torchvision.datasets.utils import download_file_from_google_drive, check_in
 
 from utils import mkdirs
 
-logging.basicConfig()
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+logger = logging.getLogger(__name__)
 
 IMG_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm', '.tif', '.tiff', '.webp')
 
@@ -362,7 +360,7 @@ class CelebA_custom(VisionDataset):
     def download(self):
 
         if self._check_integrity():
-            print('Files already downloaded and verified')
+            logger.debug('Files already downloaded and verified')
             return
 
         for (file_id, md5, filename) in self.file_list:
@@ -510,10 +508,10 @@ def download_url(url: str, root: str, filename: Optional[str] = None, md5: Optio
 
     # check if file is already present locally
     if check_integrity(fpath, md5):
-        print('Using downloaded and verified file: ' + fpath)
+        logger.debug('Using downloaded and verified file: ' + fpath)
     else:  # download the file
         try:
-            print('Downloading ' + url + ' to ' + fpath)
+            logger.debug('Downloading ' + url + ' to ' + fpath)
             urllib.request.urlretrieve(
                 url, fpath,
                 reporthook=gen_bar_updater()
@@ -521,7 +519,7 @@ def download_url(url: str, root: str, filename: Optional[str] = None, md5: Optio
         except (urllib.error.URLError, IOError) as e:  # type: ignore[attr-defined]
             if url[:5] == 'https':
                 url = url.replace('https:', 'http:')
-                print('Failed download. Trying https -> http instead.'
+                logger.debug('Failed download. Trying https -> http instead.'
                       ' Downloading ' + url + ' to ' + fpath)
                 urllib.request.urlretrieve(
                     url, fpath,
@@ -602,7 +600,7 @@ def download_and_extract_archive(
     download_url(url, download_root, filename, md5)
 
     archive = os.path.join(download_root, filename)
-    print("Extracting {} to {}".format(archive, extract_root))
+    logger.debug("Extracting {} to {}".format(archive, extract_root))
     extract_archive(archive, extract_root, remove_finished)
 
 
@@ -665,7 +663,7 @@ class FEMNIST(MNIST):
             download_and_extract_archive(url, download_root=self.raw_folder, filename=filename, md5=md5)
 
         # process and save as torch files
-        print('Processing...')
+        logger.debug('Processing...')
         shutil.move(os.path.join(self.raw_folder, self.training_file), self.processed_folder)
         shutil.move(os.path.join(self.raw_folder, self.test_file), self.processed_folder)
 
@@ -751,8 +749,8 @@ def load_svhn_data(datadir):
 def load_cifar10_data(datadir):
     transform = transforms.Compose([transforms.ToTensor()])
 
-    cifar10_train_ds = CIFAR10_truncated(datadir, train=True, download=True, transform=transform)
-    cifar10_test_ds = CIFAR10_truncated(datadir, train=False, download=True, transform=transform)
+    cifar10_train_ds = CIFAR10_truncated(datadir, train=True, transform=transform)
+    cifar10_test_ds = CIFAR10_truncated(datadir, train=False, transform=transform)
 
     X_train, y_train = cifar10_train_ds.data, cifar10_train_ds.target
     X_test, y_test = cifar10_test_ds.data, cifar10_test_ds.target

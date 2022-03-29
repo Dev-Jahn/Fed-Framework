@@ -1,12 +1,17 @@
+import logging
 import random
+import pprint
 
 import numpy as np
 import torch
 from sklearn.datasets import load_svmlight_file
 
-from data.datasets import load_mnist_data, load_fmnist_data, load_svhn_data, load_cifar10_data, load_celeba_data, \
+from data.datasets import load_mnist_data, load_fmnist_data, \
+    load_svhn_data, load_cifar10_data, load_celeba_data, \
     load_femnist_data
-from utils import logger, mkdirs
+from utils import mkdirs
+
+logger = logging.getLogger(__name__)
 
 
 def record_net_data_stats(y_train, net_dataidx_map, logdir):
@@ -17,12 +22,12 @@ def record_net_data_stats(y_train, net_dataidx_map, logdir):
         tmp = {unq[i]: unq_cnt[i] for i in range(len(unq))}
         net_cls_counts[net_i] = tmp
 
-    logger.info('Data statistics: %s' % str(net_cls_counts))
+    logger.info(f'Data statistics: \n{pprint.pformat(net_cls_counts)}')
 
     return net_cls_counts
 
 
-def partition_data(dataset, datadir, logdir, partition, n_parties, beta=0.4):
+def partition_data(dataset, datadir, logdir, partition, n_clients, beta=0.4):
     # np.random.seed(2020)
     # torch.manual_seed(2020)
 
@@ -70,8 +75,8 @@ def partition_data(dataset, datadir, logdir, partition, n_parties, beta=0.4):
         y_train = np.array(y_train, dtype=np.int32)
         y_test = np.array(y_test, dtype=np.int64)
         idxs = np.linspace(0, 3999, 4000, dtype=np.int64)
-        batch_idxs = np.array_split(idxs, n_parties)
-        net_dataidx_map = {i: batch_idxs[i] for i in range(n_parties)}
+        batch_idxs = np.array_split(idxs, n_clients)
+        net_dataidx_map = {i: batch_idxs[i] for i in range(n_clients)}
         mkdirs("data/generated/")
         np.save("data/generated/X_train.npy", X_train)
         np.save("data/generated/X_test.npy", X_test)
@@ -137,8 +142,8 @@ def partition_data(dataset, datadir, logdir, partition, n_parties, beta=0.4):
 
     if partition == "homo":
         idxs = np.random.permutation(n_train)
-        batch_idxs = np.array_split(idxs, n_parties)
-        net_dataidx_map = {i: batch_idxs[i] for i in range(n_parties)}
+        batch_idxs = np.array_split(idxs, n_clients)
+        net_dataidx_map = {i: batch_idxs[i] for i in range(n_clients)}
 
 
     elif partition == "noniid-labeldir":
@@ -154,15 +159,15 @@ def partition_data(dataset, datadir, logdir, partition, n_parties, beta=0.4):
         net_dataidx_map = {}
 
         while min_size < min_require_size:
-            idx_batch = [[] for _ in range(n_parties)]
+            idx_batch = [[] for _ in range(n_clients)]
             for k in range(K):
                 idx_k = np.where(y_train == k)[0]
                 np.random.shuffle(idx_k)
-                proportions = np.random.dirichlet(np.repeat(beta, n_parties))
+                proportions = np.random.dirichlet(np.repeat(beta, n_clients))
                 # logger.info("proportions1: ", proportions)
                 # logger.info("sum pro1:", np.sum(proportions))
                 ## Balance
-                proportions = np.array([p * (len(idx_j) < N / n_parties) for p, idx_j in zip(proportions, idx_batch)])
+                proportions = np.array([p * (len(idx_j) < N / n_clients) for p, idx_j in zip(proportions, idx_batch)])
                 # logger.info("proportions2: ", proportions)
                 proportions = proportions / proportions.sum()
                 # logger.info("proportions3: ", proportions)
@@ -170,12 +175,12 @@ def partition_data(dataset, datadir, logdir, partition, n_parties, beta=0.4):
                 # logger.info("proportions4: ", proportions)
                 idx_batch = [idx_j + idx.tolist() for idx_j, idx in zip(idx_batch, np.split(idx_k, proportions))]
                 min_size = min([len(idx_j) for idx_j in idx_batch])
-                # if K == 2 and n_parties <= 10:
+                # if K == 2 and n_clients <= 10:
                 #     if np.min(proportions) < 200:
                 #         min_size = 0
                 #         break
 
-        for j in range(n_parties):
+        for j in range(n_clients):
             np.random.shuffle(idx_batch[j])
             net_dataidx_map[j] = idx_batch[j]
 
@@ -187,17 +192,17 @@ def partition_data(dataset, datadir, logdir, partition, n_parties, beta=0.4):
         else:
             K = 10
         if num == 10:
-            net_dataidx_map = {i: np.ndarray(0, dtype=np.int64) for i in range(n_parties)}
+            net_dataidx_map = {i: np.ndarray(0, dtype=np.int64) for i in range(n_clients)}
             for i in range(10):
                 idx_k = np.where(y_train == i)[0]
                 np.random.shuffle(idx_k)
-                split = np.array_split(idx_k, n_parties)
-                for j in range(n_parties):
+                split = np.array_split(idx_k, n_clients)
+                for j in range(n_clients):
                     net_dataidx_map[j] = np.append(net_dataidx_map[j], split[j])
         else:
             times = [0 for i in range(10)]
             contain = []
-            for i in range(n_parties):
+            for i in range(n_clients):
                 current = [i % K]
                 times[i % K] += 1
                 j = 1
@@ -208,13 +213,13 @@ def partition_data(dataset, datadir, logdir, partition, n_parties, beta=0.4):
                         current.append(ind)
                         times[ind] += 1
                 contain.append(current)
-            net_dataidx_map = {i: np.ndarray(0, dtype=np.int64) for i in range(n_parties)}
+            net_dataidx_map = {i: np.ndarray(0, dtype=np.int64) for i in range(n_clients)}
             for i in range(K):
                 idx_k = np.where(y_train == i)[0]
                 np.random.shuffle(idx_k)
                 split = np.array_split(idx_k, times[i])
                 ids = 0
-                for j in range(n_parties):
+                for j in range(n_clients):
                     if i in contain[j]:
                         net_dataidx_map[j] = np.append(net_dataidx_map[j], split[ids])
                         ids += 1
@@ -223,12 +228,12 @@ def partition_data(dataset, datadir, logdir, partition, n_parties, beta=0.4):
         idxs = np.random.permutation(n_train)
         min_size = 0
         while min_size < 10:
-            proportions = np.random.dirichlet(np.repeat(beta, n_parties))
+            proportions = np.random.dirichlet(np.repeat(beta, n_clients))
             proportions = proportions / proportions.sum()
             min_size = np.min(proportions * len(idxs))
         proportions = (np.cumsum(proportions) * len(idxs)).astype(int)[:-1]
         batch_idxs = np.split(idxs, proportions)
-        net_dataidx_map = {i: batch_idxs[i] for i in range(n_parties)}
+        net_dataidx_map = {i: batch_idxs[i] for i in range(n_clients)}
 
     elif partition == "mixed":
         min_size = 0
@@ -243,7 +248,7 @@ def partition_data(dataset, datadir, logdir, partition, n_parties, beta=0.4):
 
         times = [1 for i in range(10)]
         contain = []
-        for i in range(n_parties):
+        for i in range(n_clients):
             current = [i % K]
             j = 1
             while (j < 2):
@@ -253,11 +258,11 @@ def partition_data(dataset, datadir, logdir, partition, n_parties, beta=0.4):
                     current.append(ind)
                     times[ind] += 1
             contain.append(current)
-        net_dataidx_map = {i: np.ndarray(0, dtype=np.int64) for i in range(n_parties)}
+        net_dataidx_map = {i: np.ndarray(0, dtype=np.int64) for i in range(n_clients)}
 
         min_size = 0
         while min_size < 10:
-            proportions = np.random.dirichlet(np.repeat(beta, n_parties))
+            proportions = np.random.dirichlet(np.repeat(beta, n_clients))
             proportions = proportions / proportions.sum()
             min_size = np.min(proportions * n_train)
 
@@ -267,7 +272,7 @@ def partition_data(dataset, datadir, logdir, partition, n_parties, beta=0.4):
 
             proportions_k = np.random.dirichlet(np.repeat(beta, 2))
             # proportions_k = np.ndarray(0,dtype=np.float64)
-            # for j in range(n_parties):
+            # for j in range(n_clients):
             #    if i in contain[j]:
             #        proportions_k=np.append(proportions_k ,proportions[j])
 
@@ -275,7 +280,7 @@ def partition_data(dataset, datadir, logdir, partition, n_parties, beta=0.4):
 
             split = np.split(idx_k, proportions_k)
             ids = 0
-            for j in range(n_parties):
+            for j in range(n_clients):
                 if i in contain[j]:
                     net_dataidx_map[j] = np.append(net_dataidx_map[j], split[ids])
                     ids += 1
@@ -286,9 +291,9 @@ def partition_data(dataset, datadir, logdir, partition, n_parties, beta=0.4):
         for i in range(1, num_user + 1):
             user[i] = user[i - 1] + u_train[i - 1]
         no = np.random.permutation(num_user)
-        batch_idxs = np.array_split(no, n_parties)
-        net_dataidx_map = {i: np.zeros(0, dtype=np.int32) for i in range(n_parties)}
-        for i in range(n_parties):
+        batch_idxs = np.array_split(no, n_clients)
+        net_dataidx_map = {i: np.zeros(0, dtype=np.int32) for i in range(n_clients)}
+        for i in range(n_clients):
             for j in batch_idxs[i]:
                 net_dataidx_map[i] = np.append(net_dataidx_map[i], np.arange(user[j], user[j + 1]))
 
@@ -296,11 +301,11 @@ def partition_data(dataset, datadir, logdir, partition, n_parties, beta=0.4):
     return (X_train, y_train, X_test, y_test, net_dataidx_map, traindata_cls_counts)
 
 
-def get_partition_dict(dataset, partition, n_parties, init_seed=0, datadir='./data', logdir='./logs', beta=0.5):
+def get_partition_dict(dataset, partition, n_clients, init_seed=0, datadir='./data', logdir='./logs', beta=0.5):
     seed = init_seed
     np.random.seed(seed)
     torch.manual_seed(seed)
     X_train, y_train, X_test, y_test, net_dataidx_map, traindata_cls_counts = partition_data(
-        dataset, datadir, logdir, partition, n_parties, beta=beta
+        dataset, datadir, logdir, partition, n_clients, beta=beta
     )
     return net_dataidx_map

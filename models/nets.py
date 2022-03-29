@@ -1,13 +1,17 @@
+import logging
+
 from models.cnns import PerceptronModel, FcNet, SimpleCNN, SimpleCNNMNIST, ModerateCNNMNIST, ModerateCNN
 from models.resnetcifar import ResNet50_cifar10
 from models.vggmodel import vgg11, vgg16
 from models.wideresnet import WideResNet
 
+logger = logging.getLogger(__name__)
 
-def init_nets(dropout_p, n_parties, args):
-    nets = {net_i: None for net_i in range(n_parties)}
 
-    for net_i in range(n_parties):
+def init_nets(dropout_p, n_clients, args):
+    nets = {net_i: None for net_i in range(n_clients)}
+
+    for net_i in range(n_clients):
         if args.model == 'WRN':
             if args.dataset == 'cifar10':
                 net = WideResNet(depth=28, num_classes=10, widen_factor=10, dropRate=0.3)
@@ -48,7 +52,6 @@ def init_nets(dropout_p, n_parties, args):
             if args.dataset in ("mnist", 'femnist'):
                 net = ModerateCNNMNIST()
             elif args.dataset in ("cifar10", "cinic10", "svhn"):
-                # print("in moderate cnn")
                 net = ModerateCNN()
             elif args.dataset == 'celeba':
                 net = ModerateCNN(output_dim=2)
@@ -57,14 +60,9 @@ def init_nets(dropout_p, n_parties, args):
         elif args.model == "vgg16":
             net = vgg16()
         else:
-            print("not supported yet")
+            logger.error(f'Model \"{args.model}\" is not supported.')
             exit(1)
         nets[net_i] = net
 
-    model_meta_data = []
-    layer_type = []
-    for (k, v) in nets[0].state_dict().items():
-        model_meta_data.append(v.shape)
-        layer_type.append(k)
-
-    return nets, model_meta_data, layer_type
+    layertype, model_metadata = list(zip(*[(k, v.shape) for (k, v) in nets[0].state_dict().items()]))
+    return nets, model_metadata, layertype

@@ -7,9 +7,7 @@ from torch import optim, nn
 from metrics.basic import compute_accuracy
 from data.dataloader import get_dataloader
 
-logging.basicConfig()
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
 
 
 def train_net_scaffold(net_id, net, global_model, c_local, c_global, train_dataloader, test_dataloader, epochs, lr,
@@ -110,14 +108,14 @@ def local_train_net_scaffold(nets, selected, global_model, c_nets, c_global, arg
         c_nets[net_id].to(device)
 
         noise_level = args.noise
-        if net_id == args.n_parties - 1:
+        if net_id == args.n_clients - 1:
             noise_level = 0
 
         if args.noise_type == 'space':
             train_dl_local, test_dl_local, _, _ = get_dataloader(args.dataset, args.datadir, args.batch_size, 32,
-                                                                 dataidxs, noise_level, net_id, args.n_parties - 1)
+                                                                 dataidxs, noise_level, net_id, args.n_clients - 1)
         else:
-            noise_level = args.noise / (args.n_parties - 1) * net_id
+            noise_level = args.noise / (args.n_clients - 1) * net_id
             train_dl_local, test_dl_local, _, _ = get_dataloader(args.dataset, args.datadir, args.batch_size, 32,
                                                                  dataidxs, noise_level)
         train_dl_global, test_dl_global, _, _ = get_dataloader(args.dataset, args.datadir, args.batch_size, 32)
@@ -143,7 +141,6 @@ def local_train_net_scaffold(nets, selected, global_model, c_nets, c_global, arg
         elif c_global_para[key].type() == 'torch.cuda.LongTensor':
             c_global_para[key] += total_delta[key].type(torch.cuda.LongTensor)
         else:
-            # print(c_global_para[key].type())
             c_global_para[key] += total_delta[key]
     c_global.load_state_dict(c_global_para)
 

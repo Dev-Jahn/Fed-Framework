@@ -27,7 +27,7 @@ python experiments.py --model=simple-cnn \
     --lr=0.01 \
     --batch-size=64 \
     --epochs=10 \
-    --n_parties=10 \
+    --n_clients=10 \
     --mu=0.01 \
     --rho=0.9 \
     --comm_round=50 \
@@ -49,7 +49,7 @@ python experiments.py --model=simple-cnn \
 | `lr` | Learning rate for the local models, default = `0.01`. |
 | `batch-size` | Batch size, default = `64`. |
 | `epochs` | Number of local training epochs, default = `5`. |
-| `n_parties` | Number of parties, default = `2`. |
+| `n_clients` | Number of parties, default = `2`. |
 | `mu` | The proximal term parameter for FedProx, default = `1`. |
 | `rho` | The parameter controlling the momentum SGD, default = `0`. |
 | `comm_round`    | Number of communication rounds to use, default = `50`. |
@@ -80,7 +80,7 @@ Here is explanation of parameter for function `get_partition_dict()`.
 | ----------------------------- | ---------------------------------------- |
 | `dataset`      | Dataset to use. Options: `mnist`, `cifar10`, `fmnist`, `svhn`, `generated`, `femnist`, `a9a`, `rcv1`, `covtype`. |
 | `partition`    | Tha partition way. Options: `homo`, `noniid-labeldir`, `noniid-#label1` (or 2, 3, ..., which means the fixed number of labels each party owns), `real`, `iid-diff-quantity` |
-| `n_parties` | Number of parties. |
+| `n_clients` | Number of parties. |
 | `init_seed` | The initial seed. |
 | `datadir` | The path of the dataset. |
 | `logdir` | The path to store the logs. |

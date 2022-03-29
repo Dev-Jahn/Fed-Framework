@@ -1,23 +1,28 @@
 import logging
 
+import wandb
 from torch import optim
 
 from data.dataloader import get_dataloader
 from losses import build_loss
 from metrics.basic import compute_accuracy
+from utils import save_model
 
-logging.basicConfig()
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+logger = logging.getLogger(__name__)
 
-def train_net(net_id, net, train_dataloader, test_dataloader, args, device="cpu"):
-    logger.info('Training network %s' % str(net_id))
 
-    train_acc = compute_accuracy(net, train_dataloader, device=device)
-    test_acc, conf_matrix = compute_accuracy(net, test_dataloader, get_confusion_matrix=True, device=device)
-
-    logger.info('>> Pre-Training Training accuracy: {}'.format(train_acc))
-    logger.info('>> Pre-Training Test accuracy: {}'.format(test_acc))
+def train_local(net_id, net, trainloader, testloader, comm_round, args, device):
+    train_acc = compute_accuracy(net, trainloader, device=device)
+    test_acc, conf_matrix = compute_accuracy(net, testloader, get_confusion_matrix=True, device=device)
+    logger.info(f'<< Train accuracy: {train_acc * 100:5.2f} %')
+    logger.info(f'<<  Test accuracy: {test_acc * 100:5.2f} %')
+    wandb.log(
+        data={
+            f'Client {net_id}': {'train': {'Accuracy': train_acc}},
+            f'Client {net_id}': {'test': {'Accuracy': test_acc}},
+            'round': comm_round - 0.5
+        },
+    )
 
     if args.optimizer == 'adam':
         optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=args.lr, weight_decay=args.reg)
@@ -30,36 +35,44 @@ def train_net(net_id, net, train_dataloader, test_dataloader, args, device="cpu"
     criterion = build_loss(args.loss)
 
     cnt = 0
-    if type(train_dataloader) == type([1]):
-        pass
-    else:
-        train_dataloader = [train_dataloader]
 
-    for epoch in range(args.epochs):
+    for epoch in range(1, args.epochs + 1):
         epoch_loss_collector = []
-        for tmp in train_dataloader:
-            for batch_idx, (x, target) in enumerate(tmp):
-                x, target = x.to(device), target.to(device)
+        for batch_idx, (x, target) in enumerate(trainloader):
+            x, target = x.to(device), target.to(device)
 
-                optimizer.zero_grad()
-                x.requires_grad = True
-                target.requires_grad = False
-                target = target.long()
+            optimizer.zero_grad()
+            x.requires_grad = True
+            target.requires_grad = False
+            target = target.long()
 
-                out = net(x)
-                if args.loss == 'orth':
-                    loss = criterion(out, target, net, 1e-2, device)
-                else:
-                    loss = criterion(out, target)
-                loss.backward()
-                optimizer.step()
+            out = net(x)
+            if args.loss == 'orth':
+                loss = criterion(out, target, net, 1e-2, device)
+            else:
+                loss = criterion(out, target)
+            loss.backward()
+            optimizer.step()
 
-                cnt += 1
-                epoch_loss_collector.append(loss.item())
+            cnt += 1
+            epoch_loss_collector.append(loss.item())
 
         epoch_loss = sum(epoch_loss_collector) / len(epoch_loss_collector)
-        logger.info('Epoch: %d Loss: %f' % (epoch, epoch_loss))
+        logger.info(f'Epoch: {epoch:>3} | Loss: {epoch_loss:.6f}')
+        wandb.log(
+            data={
+                f'Client {net_id}': {'train': {'Loss': epoch_loss}},
+                'epochsum': (comm_round - 1) * args.epochs + epoch
+            }
+        )
 
+        # Save local model
+        cond_comm = (comm_round % args.save_round == 0) or comm_round == args.comm_round
+        cond_epoch = (epoch % args.save_epoch == 0) or epoch == args.epochs
+        if args.save_local and cond_comm and cond_epoch:
+            save_model(net, args.name, args.modeldir, f'comm{comm_round:03}-epoch{epoch:03}-CLIENT{net_id:02}')
+
+        # calc acc for local (optional)
         # train_acc = compute_accuracy(net, train_dataloader, device=device)
         # test_acc, conf_matrix = compute_accuracy(net, test_dataloader, get_confusion_matrix=True, device=device)
 
@@ -71,17 +84,21 @@ def train_net(net_id, net, train_dataloader, test_dataloader, args, device="cpu"
         #     logger.info('>> Training accuracy: %f' % train_acc)
         #     logger.info('>> Test accuracy: %f' % test_acc)
 
-    train_acc = compute_accuracy(net, train_dataloader, device=device)
-    test_acc, conf_matrix = compute_accuracy(net, test_dataloader, get_confusion_matrix=True, device=device)
-
-    logger.info('>> Training accuracy: %f' % train_acc)
-    logger.info('>> Test accuracy: %f' % test_acc)
-
-    logger.info(' ** Training complete **')
+    train_acc = compute_accuracy(net, trainloader, device=device)
+    test_acc, conf_matrix = compute_accuracy(net, testloader, get_confusion_matrix=True, device=device)
+    logger.info(f'>> Train accuracy: {train_acc * 100:5.2f} %')
+    logger.info(f'>>  Test accuracy: {test_acc * 100:5.2f} %')
+    wandb.log(
+        data={
+            f'Client {net_id}': {'train': {'Accuracy': train_acc}},
+            f'Client {net_id}': {'test': {'Accuracy': test_acc}},
+            'round': comm_round * 2
+        },
+    )
     return train_acc, test_acc
 
 
-def local_train_net(nets, selected, args, net_dataidx_map, test_dl=None, device="cpu"):
+def train_nets(nets, selected, args, net_dataidx_map, loaders, comm_round, testloader=None, device='cuda'):
     avg_acc = 0.0
 
     for net_id, net in nets.items():
@@ -89,30 +106,19 @@ def local_train_net(nets, selected, args, net_dataidx_map, test_dl=None, device=
             continue
         dataidxs = net_dataidx_map[net_id]
 
-        logger.info("Training network %s. n_training: %d" % (str(net_id), len(dataidxs)))
-        # move the model to cuda device:
+        logger.info('-' * 58)
+        logger.info(f'Training client {net_id:>3} with {len(dataidxs):>6} data')
+
         net.to(device)
+        trainacc, testacc = train_local(net_id, net, loaders[net_id], testloader, comm_round, args, device=device)
+        net.cpu()
 
-        noise_level = args.noise
-        if net_id == args.n_parties - 1:
-            noise_level = 0
-
-        if args.noise_type == 'space':
-            train_dl_local, test_dl_local, _, _ = get_dataloader(args.dataset, args.datadir, args.batch_size, 32,
-                                                                 dataidxs, noise_level, net_id, args.n_parties - 1)
-        else:
-            noise_level = args.noise / (args.n_parties - 1) * net_id
-            train_dl_local, test_dl_local, _, _ = get_dataloader(args.dataset, args.datadir, args.batch_size, 32,
-                                                                 dataidxs, noise_level)
-        train_dl_global, test_dl_global, _, _ = get_dataloader(args.dataset, args.datadir, args.batch_size, 32)
-        trainacc, testacc = train_net(net_id, net, train_dl_local, test_dl, args,
-                                      device=device)
-        logger.info("net %d final test acc %f" % (net_id, testacc))
         avg_acc += testacc
-        # saving the trained models here
+        # Save model
         # save_model(net, net_id, args)
         # else:
         #     load_model(net, net_id, device=device)
+    logger.info('-' * 58)
     avg_acc /= len(selected)
     if args.alg == 'local_training':
         logger.info("avg test acc %f" % avg_acc)
