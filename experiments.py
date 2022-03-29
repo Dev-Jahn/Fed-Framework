@@ -198,9 +198,11 @@ if __name__ == '__main__':
             logger.info(f'>> Global  Test accuracy: {test_acc * 100:5.2f} %')
             wandb.log(
                 data={
-                    f'Global': {'train': {'Accuracy': train_acc}},
-                    f'Global': {'test': {'Accuracy': test_acc}},
-                    'round': round_
+                    f'Global': {
+                        'train': {'Accuracy': train_acc},
+                        'test': {'Accuracy': test_acc},
+                        'round': round_
+                    },
                 },
             )
 

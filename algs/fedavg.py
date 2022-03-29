@@ -18,9 +18,11 @@ def train_local(net_id, net, trainloader, testloader, comm_round, args, device):
     logger.info(f'<<  Test accuracy: {test_acc * 100:5.2f} %')
     wandb.log(
         data={
-            f'Client {net_id}': {'train': {'Accuracy': train_acc}},
-            f'Client {net_id}': {'test': {'Accuracy': test_acc}},
-            'round': comm_round - 0.5
+            f'Client {net_id}': {
+                'train': {'Accuracy': train_acc},
+                'test': {'Accuracy': test_acc},
+                'round': comm_round - 0.5
+            },
         },
     )
 
@@ -61,8 +63,10 @@ def train_local(net_id, net, trainloader, testloader, comm_round, args, device):
         logger.info(f'Epoch: {epoch:>3} | Loss: {epoch_loss:.6f}')
         wandb.log(
             data={
-                f'Client {net_id}': {'train': {'Loss': epoch_loss}},
-                'epochsum': (comm_round - 1) * args.epochs + epoch
+                f'Client {net_id}': {
+                    'train': {'Loss': epoch_loss},
+                    'epochsum': (comm_round - 1) * args.epochs + epoch
+                },
             }
         )
 
@@ -90,9 +94,11 @@ def train_local(net_id, net, trainloader, testloader, comm_round, args, device):
     logger.info(f'>>  Test accuracy: {test_acc * 100:5.2f} %')
     wandb.log(
         data={
-            f'Client {net_id}': {'train': {'Accuracy': train_acc}},
-            f'Client {net_id}': {'test': {'Accuracy': test_acc}},
-            'round': comm_round * 2
+            f'Client {net_id}': {
+                'train': {'Accuracy': train_acc},
+                'test': {'Accuracy': test_acc},
+                'round': comm_round
+            },
         },
     )
     return train_acc, test_acc
