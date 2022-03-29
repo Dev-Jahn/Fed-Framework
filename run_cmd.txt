@@ -1,7 +1,28 @@
 wandb login
+
+# just for test
 python experiments.py --name test \
+--model WRN --dataset cifar10 --datadir ~/data \
+--batch-size 128 --lr 0.1 --epochs 1 --dropout 0.3 --optimizer sgd --momentum 0.9 --loss orth \
+--alg fedavg --comm_round 1 \
+--n_clients 3 --partition noniid-labeldir --beta 0.5 \
+--save_round 1 --save_local --save_epoch 1 \
+--ngpu 1 --device cuda:0
+
+# baseline
+python experiments.py --name WRN-28-10-CE \
 --model WRN --dataset cifar10 --datadir ~/data \
 --batch-size 128 --lr 0.1 --epochs 10 --dropout 0.3 --optimizer sgd --momentum 0.9 --loss ce \
 --alg fedavg --comm_round 50 \
---n_clients 5 --partition noniid-labeldir --beta 0.5 \
+--n_clients 10 --partition noniid-labeldir --beta 0.5 \
+--save_round 10 --save_local --save_epoch 10 \
+--ngpu 1 --device cuda:0
+
+# orthloss
+python experiments.py --name WRN-28-10-ORTH \
+--model WRN --dataset cifar10 --datadir ~/data \
+--batch-size 128 --lr 0.1 --epochs 10 --dropout 0.3 --optimizer sgd --momentum 0.9 --loss orth \
+--alg fedavg --comm_round 50 \
+--n_clients 10 --partition noniid-labeldir --beta 0.5 \
+--save_round 10 --save_local --save_epoch 10 \
 --ngpu 1 --device cuda:0

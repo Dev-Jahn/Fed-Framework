@@ -11,7 +11,7 @@ import torch
 import wandb
 from torch.utils.data import ConcatDataset, DataLoader
 
-from algs.fedavg import local_train_net
+from algs.fedavg import train_nets
 from algs.fednova import local_train_net_fednova
 from algs.fedprox import local_train_net_fedprox
 from algs.scaffold import local_train_net_scaffold
@@ -19,7 +19,7 @@ from data.dataloader import get_dataloader
 from data.partition import partition_data
 from metrics.basic import compute_accuracy
 from models.nets import init_nets
-from utils import mkdirs
+from utils import mkdirs, init_logger, check_disk_space, save_model
 
 DATASETS = ['mnist', 'fmnist', 'cifar10', 'svhn', 'celeba', 'femnist', 'generated', 'rcv1', 'SUSY', 'covtype', 'a9a']
 
@@ -31,11 +31,12 @@ def get_args():
 
     # Model & Dataset
     parser.add_argument('--model', type=str, default='MLP', help='neural network used in training')
-    parser.add_argument('--modeldir', type=str, required=False, default='./models/', help='Model directory path')
+    parser.add_argument('--modeldir', type=str, required=False, default='./ckpt/', help='Model directory path')
     parser.add_argument('--dataset', type=str, choices=DATASETS, help='dataset used for training')
     parser.add_argument('--datadir', type=str, required=False, default='./data/', help='Data directory')
     parser.add_argument('--save_round', type=int, default=10, help='Save model once in n comm rounds')
-    parser.add_argument('--save_local', type=int, default=10, help='Save local model for analysis')
+    parser.add_argument('--save_local', action='store_true', help='Save local model for analysis')
+    parser.add_argument('--save_epoch', type=int, default=5, help='Save local model once in n epochs')
     # Train, Hyperparams, Optimizer
     parser.add_argument('--batch-size', type=int, default=64, help='input batch size for training (default: 64)')
     parser.add_argument('--lr', type=float, default=0.01, help='learning rate (default: 0.01)')
@@ -75,32 +76,24 @@ def get_args():
 
 if __name__ == '__main__':
     args = get_args()
+
     # Logging
     mkdirs(args.logdir)
     mkdirs(args.modeldir)
     args_path = f'{args.name}_arguments-{datetime.datetime.now().strftime("%Y-%m-%d-%H:%M-%S")}.json'
     with open(os.path.join(args.logdir, args_path), 'w') as f:
         json.dump(str(args), f)
-    log_path = f'{args.name}_log-{datetime.datetime.now().strftime("%Y-%m-%d-%H:%M-%S")}.log'
-    formatter = logging.Formatter(
-        fmt='%(asctime)s|%(levelname)-8s| %(message)s',
-        datefmt='%m-%d %H:%M'
-    )
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(formatter)
-    file_debug_handler = logging.FileHandler(log_path, mode='w')
-    file_debug_handler.setLevel(logging.DEBUG)
-    file_debug_handler.setFormatter(formatter)
-    logging.basicConfig(
-        level=logging.DEBUG,
-        handlers=[console_handler, file_debug_handler]
-    )
+    init_logger(args.name, args.logdir)
+
     logger = logging.getLogger()
-    logging.getLevelName(logger.level)
 
     # Wandb
-    # wandb.init(project=args.name)
+    wandb.init(
+        name=args.name,
+        config=args.__dict__,
+        project='federated-learning',
+        tags=['train', args.model, args.dataset, args.loss],
+    )
 
     # Device
     device = torch.device(args.device)
@@ -117,19 +110,22 @@ if __name__ == '__main__':
     X_train, y_train, X_test, y_test, net_dataidx_map, traindata_cls_counts = partition_data(
         args.dataset, args.datadir, args.logdir, args.partition, args.n_clients, beta=args.beta)
 
-    # Prepare dataloaders
+    # Prepare dataloader
+    logger.info('Creating dataloaders...')
     if args.noise_type == 'space':
-        noise_level = lambda net_id: 0 if net_id == args.n_clients - 1 else args.noise
-        dl_args = lambda net_id: {'net_id': net_id, 'total': args.n_clients - 1}
+        noise_level = lambda net_idx: 0 if net_idx == args.n_clients - 1 else args.noise
+        dl_args = lambda net_idx: {'net_id': net_idx, 'total': args.n_clients - 1}
     else:
-        noise_level = lambda net_id: args.noise / (args.n_clients - 1) * net_id
-        dl_args = lambda net_id: {}
-    trainloaders, testloaders, trainsets, testsets = list(zip(
-        *[get_dataloader(
-            args.dataset, args.datadir, args.batch_size, 32,
-            net_dataidx_map[i], noise_level(i), **dl_args(i)
-        ) for i in range(args.n_clients)]
-    ))
+        noise_level = lambda net_idx: args.noise / (args.n_clients - 1) * net_idx
+        dl_args = lambda net_idx: {}
+    trainloaders, testloaders, trainsets, testsets = [
+        {idx: obj for idx, obj in enumerate(tup)} for tup in list(zip(
+            *[get_dataloader(
+                args.dataset, args.datadir, args.batch_size, 32,
+                net_dataidx_map[i], noise_level(i), **dl_args(i)
+            ) for i in range(args.n_clients)]
+        ))
+    ]
     # if noise
     if args.noise > 0:
         trainloader_global = DataLoader(dataset=ConcatDataset(trainsets), batch_size=args.batch_size, shuffle=True)
@@ -138,8 +134,8 @@ if __name__ == '__main__':
         trainloader_global, testloader_global, trainset_global, testset_global = get_dataloader(
             args.dataset, args.datadir, args.batch_size, 32
         )
-    logger.info('Global train size:', len(trainset_global))
-    logger.info('Global test  size:', len(testset_global))
+    logger.info(f'Global train size: {len(trainset_global)}')
+    logger.info(f'Global test  size: {len(testset_global)}')
 
     if args.alg == 'fedavg':
         logger.info('Initializing nets...')
@@ -148,20 +144,25 @@ if __name__ == '__main__':
         global_models, global_model_meta_data, global_layer_type = init_nets(0, 1, args)
         global_model = global_models[0]
 
+        check_disk_space(
+            global_model, args.n_clients, args.comm_round, args.save_round,
+            args.save_local, args.epochs, args.save_epoch
+        )
+
         global_para = global_model.state_dict()
         if args.is_same_initial:
             for net_id, net in nets.items():
                 net.load_state_dict(global_para)
 
-        for round in range(args.comm_round):
-            logger.info('in comm round:' + str(round))
-
+        for round_ in range(1, args.comm_round + 1):
+            logger.info('=' * 58)
+            logger.info('Communication round: ' + str(round_))
             arr = np.arange(args.n_clients)
             np.random.shuffle(arr)
             selected = arr[:int(args.n_clients * args.sample)]
 
             global_para = global_model.state_dict()
-            if round == 0:
+            if round_ == 1:
                 if args.is_same_initial:
                     for idx in selected:
                         nets[idx].load_state_dict(global_para)
@@ -169,15 +170,15 @@ if __name__ == '__main__':
                 for idx in selected:
                     nets[idx].load_state_dict(global_para)
 
-            local_train_net(nets, selected, args, net_dataidx_map, test_dl=testloader_global, device=device)
-            # local_train_net(nets, args, net_dataidx_map, local_split=False, device=device)
+            train_nets(nets, selected, args, net_dataidx_map, trainloaders, round_, testloader=testloader_global,
+                       device=device)
 
             # update global model
             total_data_points = sum([len(net_dataidx_map[r]) for r in selected])
             fed_avg_freqs = [len(net_dataidx_map[r]) / total_data_points for r in selected]
 
             for idx in range(len(selected)):
-                net_para = nets[selected[idx]].cpu().state_dict()
+                net_para = nets[selected[idx]].state_dict()
                 if idx == 0:
                     for key in net_para:
                         global_para[key] = net_para[key] * fed_avg_freqs[idx]
@@ -186,17 +187,27 @@ if __name__ == '__main__':
                         global_para[key] += net_para[key] * fed_avg_freqs[idx]
             global_model.load_state_dict(global_para)
 
-            logger.info('global n_training: %d' % len(trainloader_global))
-            logger.info('global n_test: %d' % len(testloader_global))
-
+            global_model.to(device)
             train_acc = compute_accuracy(global_model, trainloader_global, device=device)
             test_acc, conf_matrix = compute_accuracy(
                 global_model, testloader_global, get_confusion_matrix=True, device=device
             )
+            global_model.cpu()
 
-            logger.info('>> Global Model Train accuracy: %f' % train_acc)
-            logger.info('>> Global Model Test accuracy: %f' % test_acc)
+            logger.info(f'>> Global Train accuracy: {train_acc * 100:5.2f} %')
+            logger.info(f'>> Global  Test accuracy: {test_acc * 100:5.2f} %')
+            wandb.log(
+                data={
+                    f'Global': {'train': {'Accuracy': train_acc}},
+                    f'Global': {'test': {'Accuracy': test_acc}},
+                    'round': round_
+                },
+            )
 
+            # Save global model
+            if (round_ % args.save_round == 0) or round_ == args.comm_round:
+                save_model(global_model, args.name, args.modeldir, f'comm{round_:03}-GLOBAL')
+        logger.info('=' * 58)
 
     elif args.alg == 'fedprox':
         logger.info('Initializing nets')
@@ -210,15 +221,15 @@ if __name__ == '__main__':
             for net_id, net in nets.items():
                 net.load_state_dict(global_para)
 
-        for round in range(args.comm_round):
-            logger.info('in comm round:' + str(round))
+        for round_ in range(args.comm_round):
+            logger.info('Communication round: ' + str(round_))
 
             arr = np.arange(args.n_clients)
             np.random.shuffle(arr)
             selected = arr[:int(args.n_clients * args.sample)]
 
             global_para = global_model.state_dict()
-            if round == 0:
+            if round_ == 0:
                 if args.is_same_initial:
                     for idx in selected:
                         nets[idx].load_state_dict(global_para)
@@ -235,7 +246,7 @@ if __name__ == '__main__':
             fed_avg_freqs = [len(net_dataidx_map[r]) / total_data_points for r in selected]
 
             for idx in range(len(selected)):
-                net_para = nets[selected[idx]].cpu().state_dict()
+                net_para = nets[selected[idx]].state_dict()
                 if idx == 0:
                     for key in net_para:
                         global_para[key] = net_para[key] * fed_avg_freqs[idx]
@@ -273,15 +284,15 @@ if __name__ == '__main__':
             for net_id, net in nets.items():
                 net.load_state_dict(global_para)
 
-        for round in range(args.comm_round):
-            logger.info('in comm round:' + str(round))
+        for round_ in range(args.comm_round):
+            logger.info('Communication round: ' + str(round_))
 
             arr = np.arange(args.n_clients)
             np.random.shuffle(arr)
             selected = arr[:int(args.n_clients * args.sample)]
 
             global_para = global_model.state_dict()
-            if round == 0:
+            if round_ == 0:
                 if args.is_same_initial:
                     for idx in selected:
                         nets[idx].load_state_dict(global_para)
@@ -297,7 +308,7 @@ if __name__ == '__main__':
             fed_avg_freqs = [len(net_dataidx_map[r]) / total_data_points for r in selected]
 
             for idx in range(len(selected)):
-                net_para = nets[selected[idx]].cpu().state_dict()
+                net_para = nets[selected[idx]].state_dict()
                 if idx == 0:
                     for key in net_para:
                         global_para[key] = net_para[key] * fed_avg_freqs[idx]
@@ -344,15 +355,15 @@ if __name__ == '__main__':
             for net_id, net in nets.items():
                 net.load_state_dict(global_para)
 
-        for round in range(args.comm_round):
-            logger.info('in comm round:' + str(round))
+        for round_ in range(args.comm_round):
+            logger.info('Communication round: ' + str(round_))
 
             arr = np.arange(args.n_clients)
             np.random.shuffle(arr)
             selected = arr[:int(args.n_clients * args.sample)]
 
             global_para = global_model.state_dict()
-            if round == 0:
+            if round_ == 0:
                 if args.is_same_initial:
                     for idx in selected:
                         nets[idx].load_state_dict(global_para)
@@ -403,6 +414,8 @@ if __name__ == '__main__':
         logger.info('Initializing nets')
         nets, local_model_meta_data, layer_type = init_nets(args.dropout, args.n_clients, args)
         arr = np.arange(args.n_clients)
-        local_train_net(nets, arr, args, net_dataidx_map, test_dl=testloader_global, device=device)
+        train_nets(nets, arr, args, net_dataidx_map, testloader=testloader_global, device=device)
     else:
         raise NotImplementedError()
+
+    wandb.finish()

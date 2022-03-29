@@ -22,7 +22,7 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-def compute_accuracy(model, dataloader, get_confusion_matrix=False, device="cpu"):
+def compute_accuracy(model, dataloader, get_confusion_matrix=False, device='cuda'):
     was_training = False
     if model.training:
         model.eval()
@@ -30,28 +30,22 @@ def compute_accuracy(model, dataloader, get_confusion_matrix=False, device="cpu"
 
     true_labels_list, pred_labels_list = np.array([]), np.array([])
 
-    if type(dataloader) == type([1]):
-        pass
-    else:
-        dataloader = [dataloader]
-
     correct, total = 0, 0
     with torch.no_grad():
-        for tmp in dataloader:
-            for batch_idx, (x, target) in enumerate(tmp):
-                x, target = x.to(device), target.to(device, dtype=torch.int64)
-                out = model(x)
-                _, pred_label = torch.max(out.data, 1)
+        for batch_idx, (x, target) in enumerate(dataloader):
+            x, target = x.to(device), target.to(device, dtype=torch.int64)
+            out = model(x)
+            _, pred_label = torch.max(out.data, 1)
 
-                total += x.data.size()[0]
-                correct += (pred_label == target.data).sum().item()
+            total += x.data.size()[0]
+            correct += (pred_label == target.data).sum().item()
 
-                if device == "cpu":
-                    pred_labels_list = np.append(pred_labels_list, pred_label.numpy())
-                    true_labels_list = np.append(true_labels_list, target.data.numpy())
-                else:
-                    pred_labels_list = np.append(pred_labels_list, pred_label.cpu().numpy())
-                    true_labels_list = np.append(true_labels_list, target.data.cpu().numpy())
+            if device == "cpu":
+                pred_labels_list = np.append(pred_labels_list, pred_label.numpy())
+                true_labels_list = np.append(true_labels_list, target.data.numpy())
+            else:
+                pred_labels_list = np.append(pred_labels_list, pred_label.cpu().numpy())
+                true_labels_list = np.append(true_labels_list, target.data.cpu().numpy())
 
     if get_confusion_matrix:
         conf_matrix = confusion_matrix(true_labels_list, pred_labels_list)

@@ -1,12 +1,17 @@
+import logging
 import random
+import pprint
 
 import numpy as np
 import torch
 from sklearn.datasets import load_svmlight_file
 
-from data.datasets import load_mnist_data, load_fmnist_data, load_svhn_data, load_cifar10_data, load_celeba_data, \
+from data.datasets import load_mnist_data, load_fmnist_data, \
+    load_svhn_data, load_cifar10_data, load_celeba_data, \
     load_femnist_data
-from utils import logger, mkdirs
+from utils import mkdirs
+
+logger = logging.getLogger(__name__)
 
 
 def record_net_data_stats(y_train, net_dataidx_map, logdir):
@@ -17,7 +22,7 @@ def record_net_data_stats(y_train, net_dataidx_map, logdir):
         tmp = {unq[i]: unq_cnt[i] for i in range(len(unq))}
         net_cls_counts[net_i] = tmp
 
-    logger.info('Data statistics: %s' % str(net_cls_counts))
+    logger.info(f'Data statistics: \n{pprint.pformat(net_cls_counts)}')
 
     return net_cls_counts
 
