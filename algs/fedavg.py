@@ -21,8 +21,8 @@ def train_local(net_id, net, trainloader, testloader, comm_round, args, device):
             f'Client {net_id}': {
                 'train': {'Accuracy': train_acc},
                 'test': {'Accuracy': test_acc},
-                'round': comm_round - 0.5
             },
+            'round': comm_round - 0.5
         },
     )
 
@@ -65,8 +65,8 @@ def train_local(net_id, net, trainloader, testloader, comm_round, args, device):
             data={
                 f'Client {net_id}': {
                     'train': {'Loss': epoch_loss},
-                    'epochsum': (comm_round - 1) * args.epochs + epoch
                 },
+                'epochsum': (comm_round - 1) * args.epochs + epoch
             }
         )
 
@@ -97,8 +97,8 @@ def train_local(net_id, net, trainloader, testloader, comm_round, args, device):
             f'Client {net_id}': {
                 'train': {'Accuracy': train_acc},
                 'test': {'Accuracy': test_acc},
-                'round': comm_round
             },
+            'round': comm_round
         },
     )
     return train_acc, test_acc

@@ -201,8 +201,8 @@ if __name__ == '__main__':
                     f'Global': {
                         'train': {'Accuracy': train_acc},
                         'test': {'Accuracy': test_acc},
-                        'round': round_
                     },
+                    'round': round_
                 },
             )
 
