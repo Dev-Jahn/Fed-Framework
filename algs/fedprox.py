@@ -93,14 +93,14 @@ def local_train_net_fedprox(nets, selected, global_model, args, net_dataidx_map,
         net.to(device)
 
         noise_level = args.noise
-        if net_id == args.n_parties - 1:
+        if net_id == args.n_clients - 1:
             noise_level = 0
 
         if args.noise_type == 'space':
             train_dl_local, test_dl_local, _, _ = get_dataloader(args.dataset, args.datadir, args.batch_size, 32,
-                                                                 dataidxs, noise_level, net_id, args.n_parties - 1)
+                                                                 dataidxs, noise_level, net_id, args.n_clients - 1)
         else:
-            noise_level = args.noise / (args.n_parties - 1) * net_id
+            noise_level = args.noise / (args.n_clients - 1) * net_id
             train_dl_local, test_dl_local, _, _ = get_dataloader(args.dataset, args.datadir, args.batch_size, 32,
                                                                  dataidxs, noise_level)
         train_dl_global, test_dl_global, _, _ = get_dataloader(args.dataset, args.datadir, args.batch_size, 32)

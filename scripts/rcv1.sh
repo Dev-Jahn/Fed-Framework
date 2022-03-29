@@ -12,7 +12,7 @@ do
 					--lr=0.1 \
 					--batch-size=64 \
 					--epochs=10 \
-					--n_parties=10 \
+					--n_clients=10 \
 					--rho=0.9 \
 					--comm_round=50 \
 					--partition=$partition \
@@ -32,7 +32,7 @@ do
 					--lr=0.1 \
 					--batch-size=64 \
 					--epochs=10 \
-					--n_parties=10 \
+					--n_clients=10 \
 					--rho=0.9 \
 					--mu=$mu
 					--comm_round=50 \

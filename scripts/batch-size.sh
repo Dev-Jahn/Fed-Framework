@@ -8,7 +8,7 @@ do
 			--lr=0.01 \
 			--batch-size=$size \
 			--epochs=10 \
-			--n_parties=10 \
+			--n_clients=10 \
 			--rho=0.9 \
 			--mu=0.01 \
 			--comm_round=50 \

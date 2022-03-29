@@ -10,7 +10,7 @@ do
 				--lr=0.01 \
 				--batch-size=64 \
 				--epochs=10 \
-				--n_parties=10 \
+				--n_clients=10 \
 				--rho=0.9 \
 				--mu=0.01 \
 				--comm_round=100 \
@@ -32,7 +32,7 @@ do
 				--lr=0.01 \
 				--batch-size=64 \
 				--epochs=10 \
-				--n_parties=10 \
+				--n_clients=10 \
 				--rho=0.9 \
 				--mu=0.01 \
 				--comm_round=100 \
