@@ -48,6 +48,7 @@ def get_args():
     parser.add_argument('--nesterov', type=bool, default=True, help='nesterov momentum')
     parser.add_argument('--mu', type=float, default=1, help='the mu parameter for fedprox')
     parser.add_argument('--reg', type=float, default=1e-5, help='L2 losses strength')
+    parser.add_argument('--odecay', type=float, default=1e-2, help='Orth loss strength')
     # Averaging algorithms
     parser.add_argument('--alg', type=str, choices=['fedavg', 'fedprox', 'scaffold', 'fednova'],
                         help='communication strategy')

@@ -12,19 +12,19 @@ logger = logging.getLogger(__name__)
 
 
 def train_local(net_id, net, trainloader, testloader, comm_round, args, device):
-    train_acc = compute_accuracy(net, trainloader, device=device)
-    test_acc, conf_matrix = compute_accuracy(net, testloader, get_confusion_matrix=True, device=device)
-    logger.info(f'<< Train accuracy: {train_acc * 100:5.2f} %')
-    logger.info(f'<<  Test accuracy: {test_acc * 100:5.2f} %')
-    wandb.log(
-        data={
-            f'Client {net_id}': {
-                'train': {'Accuracy': train_acc},
-                'test': {'Accuracy': test_acc},
-            },
-            'round': comm_round - 0.5
-        },
-    )
+    # train_acc = compute_accuracy(net, trainloader, device=device)
+    # test_acc, conf_matrix = compute_accuracy(net, testloader, get_confusion_matrix=True, device=device)
+    # logger.info(f'<< Train accuracy: {train_acc * 100:5.2f} %')
+    # logger.info(f'<<  Test accuracy: {test_acc * 100:5.2f} %')
+    # wandb.log(
+    #     data={
+    #         f'Client {net_id}': {
+    #             'train': {'Accuracy': train_acc},
+    #             'test': {'Accuracy': test_acc},
+    #         },
+    #         'round': comm_round - 0.5
+    #     },
+    # )
 
     if args.optimizer == 'adam':
         optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=args.lr, weight_decay=args.reg)
@@ -50,7 +50,7 @@ def train_local(net_id, net, trainloader, testloader, comm_round, args, device):
 
             out = net(x)
             if args.loss == 'orth':
-                loss = criterion(out, target, net, 1e-2, device)
+                loss = criterion(out, target, net, args.odecay, device)
             else:
                 loss = criterion(out, target)
             loss.backward()

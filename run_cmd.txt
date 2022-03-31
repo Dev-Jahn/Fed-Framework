@@ -22,6 +22,7 @@ python experiments.py --name WRN-28-10-CE \
 python experiments.py --name WRN-28-10-ORTH \
 --model WRN --dataset cifar10 --datadir ~/data \
 --batch-size 128 --lr 0.1 --epochs 10 --dropout 0.3 --optimizer sgd --momentum 0.9 --loss orth \
+--odecay 1e-2
 --alg fedavg --comm_round 50 \
 --n_clients 10 --partition noniid-labeldir --beta 0.5 \
 --save_round 10 --save_local --save_epoch 10 \
