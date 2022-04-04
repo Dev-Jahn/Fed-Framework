@@ -1,7 +1,7 @@
 import logging
 
 from models.cnns import PerceptronModel, FcNet, SimpleCNN, SimpleCNNMNIST, ModerateCNNMNIST, ModerateCNN
-from models.resnetcifar import ResNet50_cifar10
+from models.resnet import ResNet50
 from models.vggmodel import vgg11, vgg16
 from models.wideresnet import WideResNet
 
@@ -56,7 +56,7 @@ def init_nets(dropout_p, n_clients, args):
             elif args.dataset == 'celeba':
                 net = ModerateCNN(output_dim=2)
         elif args.model == "resnet":
-            net = ResNet50_cifar10()
+            net = ResNet50()
         elif args.model == "vgg16":
             net = vgg16()
         else:
