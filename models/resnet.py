@@ -5,8 +5,12 @@ Reference:
 [1] Kaiming He, Xiangyu Zhang, Shaoqing Ren, Jian Sun
     Deep Residual Learning for Image Recognition. arXiv:1512.03385
 """
+import logging
+
 import torch
 import torch.nn as nn
+
+logger = logging.getLogger(__name__)
 
 
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
@@ -208,32 +212,44 @@ class ResNet(nn.Module):
 
 
 class SimpleBlock(nn.Module):
-    def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,
-                 base_width=64, dilation=1,):
+    def __init__(self, in_planes, out_planes, activation, pool=False, pool_size=2):
         super(SimpleBlock, self).__init__()
+        self.conv = nn.Conv2d(in_planes, out_planes, kernel_size=3, padding=1)
+        self.bn = nn.BatchNorm2d(out_planes)
+        self.pool = nn.MaxPool2d(pool_size) if pool else None
+        try:
+            self.activation = nn.__dict__[activation]
+        except KeyError:
+            logger.error('Unsupported activation function. Use correct class name from torch.')
+            exit(1)
 
     def forward(self, x):
-        pass
+        x = self.conv(x)
+        x = self.bn(x)
+        x = self.activation(x)
+        if self.pool:
+            x = self.pool(x)
+        return x
 
 
 class ResNet9(nn.Module):
-    def __init__(self, activation='relu', **kwargs):
-        self.prep = SimpleBlock()
-        self.layer1 = SimpleBlock()
+    def __init__(self, in_channels, n_classes, activation='ReLU'):
+        self.prep = SimpleBlock(in_channels, 64, activation)
+        self.layer1 = SimpleBlock(64, 128, activation, pool=True)
         self.layer1_res = nn.Sequential(
-            SimpleBlock(),
-            SimpleBlock(),
+            SimpleBlock(128, 128, activation),
+            SimpleBlock(128, 128, activation),
         )
-        self.layer2 = SimpleBlock()
-        self.layer3 = SimpleBlock()
+        self.layer2 = SimpleBlock(128, 256, activation, pool=True)
+        self.layer3 = SimpleBlock(256, 256, activation, pool=True)
         self.layer3_res = nn.Sequential(
-            SimpleBlock(),
-            SimpleBlock(),
+            SimpleBlock(256, 256, activation),
+            SimpleBlock(256, 256, activation),
         )
         self.classifier = nn.Sequential(
-            nn.MaxPool2d(),
+            nn.MaxPool2d(2),
             nn.Flatten(),
-            nn.Linear()
+            nn.Linear(1024, n_classes)
         )
 
     def forward(self, x):
@@ -255,5 +271,6 @@ class ResNet18(ResNet):
 class ResNet50(ResNet):
     def __init__(self, **kwargs):
         super(ResNet50, self).__init__(Bottleneck, [3, 4, 6, 3], **kwargs)
+
 
 from torchvision.models import resnet18
