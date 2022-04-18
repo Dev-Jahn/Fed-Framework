@@ -218,7 +218,7 @@ class SimpleBlock(nn.Module):
         self.bn = nn.BatchNorm2d(out_planes)
         self.pool = nn.MaxPool2d(pool_size) if pool else None
         try:
-            self.activation = nn.__dict__[activation]
+            self.activation = nn.__dict__[activation]()
         except KeyError:
             logger.error('Unsupported activation function. Use correct class name from torch.')
             exit(1)
@@ -234,6 +234,7 @@ class SimpleBlock(nn.Module):
 
 class ResNet9(nn.Module):
     def __init__(self, in_channels, n_classes, activation='ReLU'):
+        super(ResNet9, self).__init__()
         self.prep = SimpleBlock(in_channels, 64, activation)
         self.layer1 = SimpleBlock(64, 128, activation, pool=True)
         self.layer1_res = nn.Sequential(
@@ -258,7 +259,7 @@ class ResNet9(nn.Module):
         x = x + self.layer1_res(x)
         x = self.layer2(x)
         x = self.layer3(x)
-        x = x + self.layer3_res
+        x = x + self.layer3_res(x)
         x = self.classifier(x)
         return x
 
@@ -274,3 +275,4 @@ class ResNet50(ResNet):
 
 
 from torchvision.models import resnet18
+from torch.utils.data import DataLoader2
