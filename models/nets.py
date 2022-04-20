@@ -56,7 +56,8 @@ def init_nets(dropout_p, n_clients, args):
             elif args.dataset == 'celeba':
                 net = ModerateCNN(output_dim=2)
         elif args.model == "resnet-50":
-            net = ResNet50()
+            if args.dataset in ["cifar10"]:
+                net = ResNet50(num_classes=10)
         elif args.model == "resnet-9":
             net = ResNet9(3, 10)
         elif args.model == "vgg16":

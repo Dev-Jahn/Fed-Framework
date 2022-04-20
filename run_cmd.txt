@@ -27,3 +27,39 @@ python experiments.py --name WRN-28-10-ORTH \
 --n_clients 10 --partition noniid-labeldir --beta 0.5 \
 --save_round 10 --save_local --save_epoch 10 \
 --ngpu 1 --device cuda:0
+
+# iid
+python experiments.py --name R50-IID \
+--model resnet-50 --dataset cifar10 --datadir ~/data --modeldir ./ckpt \
+--batch-size 128 --lr 0.1 --epochs 10 --dropout 0.3 --optimizer sgd --momentum 0.9 --loss ce \
+--alg fedavg --comm_round 10 \
+--n_clients 10 --partition homo \
+--save_round 2 --save_local --save_epoch 10 \
+--ngpu 1 --device cuda:0
+
+# NIID (0.5)
+python experiments.py --name R50-NIID \
+--model resnet-50 --dataset cifar10 --datadir ~/data --modeldir ./ckpt \
+--batch-size 128 --lr 0.1 --epochs 10 --dropout 0.3 --optimizer sgd --momentum 0.9 --loss ce \
+--alg fedavg --comm_round 10 \
+--n_clients 10 --partition noniid-labeldir --beta 0.5 \
+--save_round 2 --save_local --save_epoch 10 \
+--ngpu 1 --device cuda:0
+
+# local 5
+python experiments.py --name R50-local5 \
+--model resnet-50 --dataset cifar10 --datadir ~/data --modeldir ./ckpt \
+--batch-size 128 --lr 0.1 --epochs 5 --dropout 0.3 --optimizer sgd --momentum 0.9 --loss ce \
+--alg fedavg --comm_round 20 \
+--n_clients 10 --partition noniid-labeldir --beta 0.5 \
+--save_round 4 --save_local --save_epoch 5 \
+--ngpu 1 --device cuda:0
+
+# local 20
+python experiments.py --name R50-local20 \
+--model resnet-50 --dataset cifar10 --datadir ~/data --modeldir ./ckpt \
+--batch-size 128 --lr 0.1 --epochs 20 --dropout 0.3 --optimizer sgd --momentum 0.9 --loss ce \
+--alg fedavg --comm_round 5 \
+--n_clients 10 --partition noniid-labeldir --beta 0.5 \
+--save_round 1 --save_local --save_epoch 20 \
+--ngpu 1 --device cuda:0
