@@ -69,6 +69,7 @@ def get_args():
     # Misc.
     parser.add_argument('--ngpu', default=1, type=int, help='total number of gpus (default: 1)')
     parser.add_argument('--device', type=str, default='cuda:0', help='The device to run the program')
+    parser.add_argument('--amp', action='store_true', help='Turn Automatic Mixed Precision on')
     parser.add_argument('--init_seed', type=int, default=0, help='Random seed')
     parser.add_argument('--logdir', type=str, required=False, default='./logs/', help='Log directory path')
     args = parser.parse_args()

@@ -1,5 +1,8 @@
-.idea/
+.idea
 __pycache__
-logs/
-wandb/
-ckpt/
+**/.ipynb_checkpoints
+**/.ipynb_checkpoints/
+logs
+wandb
+ckpt
+test.ipynb
