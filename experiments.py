@@ -146,10 +146,12 @@ if __name__ == '__main__':
         global_models, global_model_meta_data, global_layer_type = init_nets(0, 1, args)
         global_model = global_models[0]
 
-        check_disk_space(
-            global_model, args.n_clients, args.comm_round, args.save_round,
-            args.save_local, args.epochs, args.save_epoch
-        )
+        # TODO
+        # commented out for consecutive run
+        # check_disk_space(
+        #     global_model, args.n_clients, args.comm_round, args.save_round,
+        #     args.save_local, args.epochs, args.save_epoch
+        # )
 
         global_para = global_model.state_dict()
         if args.is_same_initial:
