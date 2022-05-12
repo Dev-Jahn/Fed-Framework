@@ -5,6 +5,7 @@ import datetime
 import logging
 import os
 import sys
+from torch import fft
 
 import numpy as np
 import torch
@@ -30,7 +31,7 @@ def get_args():
     parser.add_argument('--name', type=str, required=True, help='Name of each experiment')
 
     # Model & Dataset
-    parser.add_argument('--model', type=str, default='MLP', help='neural network used in training')
+    parser.add_argument('--arch', type=str, default='MLP', help='Neural network architecture used in training')
     parser.add_argument('--modeldir', type=str, required=False, default='./ckpt/', help='Model directory path')
     parser.add_argument('--dataset', type=str, choices=DATASETS, help='dataset used for training')
     parser.add_argument('--datadir', type=str, required=False, default='./data/', help='Data directory')
@@ -42,7 +43,7 @@ def get_args():
     parser.add_argument('--lr', type=float, default=0.01, help='learning rate (default: 0.01)')
     parser.add_argument('--epochs', type=int, default=5, help='number of local epochs')
     parser.add_argument('--dropout', type=float, required=False, default=0.0, help='Dropout probability. Default=0.0')
-    parser.add_argument('--loss', type=str, choices=['ce', 'orth'], default='ce', help='Loss function')
+    parser.add_argument('--loss', type=str, choices=['ce', 'srip', 'ocnn'], default='ce', help='Loss function')
     parser.add_argument('--optimizer', type=str, choices=['adam', 'amsgrad', 'sgd'], default='sgd', help='Optimizer')
     parser.add_argument('--momentum', type=float, default=0, help='Parameter controlling the momentum SGD')
     parser.add_argument('--nesterov', type=bool, default=True, help='nesterov momentum')
@@ -94,7 +95,7 @@ if __name__ == '__main__':
         name=args.name,
         config=args.__dict__,
         project='federated-learning',
-        tags=['train', args.model, args.dataset, args.loss],
+        tags=['train', args.arch, args.dataset, args.loss],
     )
 
     # Device

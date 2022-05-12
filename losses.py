@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from torch import nn, Tensor
 import torch.nn.functional as F
@@ -5,28 +6,51 @@ import torch.nn.functional as F
 
 def build_loss(name, *args, **kwargs):
     if name == 'ce':
-        return nn.CrossEntropyLoss(*args, **kwargs)
-    elif name == 'orth':
-        return OrthLoss(*args, **kwargs)
+        return CELossBase(*args, **kwargs)
+    elif name == 'srip':
+        return SRIPLoss(*args, **kwargs)
+    elif name == 'ocnn':
+        return OCNNLoss(*args, **kwargs)
+    else:
+        raise NotImplementedError(f'Unimplemented loss "{name}"')
 
 
-# From paper 'Can We Gain More from Orthogonality Regularizations in Training Deep CNNs?'
-class OrthLoss(nn.CrossEntropyLoss):
+class CELossBase(nn.CrossEntropyLoss):
+    """
+    Base class for various type of CrossEntropy based losses
+    Receives additional argument for forward function
+    """
+
     def __init__(self, weight=None, size_average=None, ignore_index: int = -100,
                  reduce=None, reduction: str = 'mean') -> None:
-        super(OrthLoss, self).__init__(weight, size_average, ignore_index, reduce, reduction)
+        super(CELossBase, self).__init__(weight, size_average, ignore_index, reduce, reduction)
 
-    def forward(self, input: Tensor, target: Tensor, model: nn.Module, decay: float, device) -> Tensor:
-        celoss = F.cross_entropy(
-            input, target,
-            weight=self.weight, ignore_index=self.ignore_index,
-            reduction=self.reduction
-        )
-        oloss = decay * self.l2_reg_ortho(model, device)
-        return celoss + oloss
+    def forward(self, input: Tensor, target: Tensor, *args, **kwargs) -> Tensor:
+        return super().forward(input, target), None
+
+
+class SRIPLoss(CELossBase):
+    """
+    From paper 'Can We Gain More from Orthogonality Regularizations in Training Deep CNNs?'
+    (Nitin Bansal, Xiaohan Chen, Zhangyang Wang)
+    (https://arxiv.org/abs/1810.09102)
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(SRIPLoss, self).__init__(*args, **kwargs)
+
+    def forward(self, input: Tensor, target: Tensor, *args, **kwargs):
+        model = kwargs.get('model')
+        decay = kwargs.get('decay')
+        assert model and decay
+
+        celoss = super().forward(input, target)
+        oloss = self.l2_reg_ortho(model)
+        return celoss + decay * oloss, oloss
 
     @staticmethod
-    def l2_reg_ortho(model, device):
+    def l2_reg_ortho(model):
+        device = next(model.parameters()).device
         l2_reg = None
         for W in model.parameters():
             if W.ndimension() < 2:
@@ -57,3 +81,63 @@ class OrthLoss(nn.CrossEntropyLoss):
                 else:
                     l2_reg = l2_reg + (torch.norm(v3, 2)) ** 2
         return l2_reg
+
+
+class OCNNLoss(CELossBase):
+    """
+    From paper 'Orthogonal Convolutional Neural Networks'
+    (Jiayun Wang, Yubei Chen, Rudrasis Chakraborty, Stella X. Yu)
+    (https://arxiv.org/abs/1911.12207)
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(OCNNLoss, self).__init__(*args, **kwargs)
+
+    def forward(self, input: Tensor, target: Tensor, *args, **kwargs) -> Tensor:
+        model = kwargs.get('model')
+        decay = kwargs.get('decay')
+        assert model and decay
+
+        celoss = super().forward(input, target)
+        # TODO Model-wise tweak needed
+        # 1x1 Conv
+        diffs = [
+            self.orth_dist(m.weight) for k, m in list(model.named_modules())
+            if m.__dict__.get('kernel_size') == (1, 1)
+        ]
+        # Conv1 except first layer(according to original paper)
+        diffs += [v for k, v in list(model.named_modules()) if 'conv1' in k][1:]
+        # Conv2 (Experimental)
+        # diffs += [v for k, v in list(model.named_modules()) if 'conv2' in k]
+        oloss = sum(diffs)
+        return celoss + decay * oloss, oloss
+
+    @staticmethod
+    def orth_dist(mat, stride=None):
+        mat = mat.reshape((mat.shape[0], -1))
+        if mat.shape[0] < mat.shape[1]:
+            mat = mat.permute(1, 0)
+        return torch.norm(torch.t(mat) @ mat - torch.eye(mat.shape[1]).cuda())
+
+    @staticmethod
+    def deconv_orth_dist(kernel, stride=2, padding=1):
+        [o_c, i_c, w, h] = kernel.shape
+        output = torch.conv2d(kernel, kernel, stride=stride, padding=padding)
+        target = torch.zeros((o_c, o_c, output.shape[-2], output.shape[-1])).cuda()
+        ct = int(np.floor(output.shape[-1] / 2))
+        target[:, :, ct, ct] = torch.eye(o_c).cuda()
+        return torch.norm(output - target)
+
+    @staticmethod
+    def conv_orth_dist(kernel, stride=1):
+        [o_c, i_c, w, h] = kernel.shape
+        assert (w == h), "Do not support rectangular kernel"
+        # half = np.floor(w/2)
+        assert stride < w, "Please use matrix orthgonality instead"
+        new_s = stride * (w - 1) + w  # np.int(2*(half+np.floor(half/stride))+1)
+        temp = torch.eye(new_s * new_s * i_c).reshape((new_s * new_s * i_c, i_c, new_s, new_s)).cuda()
+        out = (F.conv2d(temp, kernel, stride=stride)).reshape((new_s * new_s * i_c, -1))
+        Vmat = out[np.floor(new_s ** 2 / 2).astype(int)::new_s ** 2, :]
+        temp = np.zeros((i_c, i_c * new_s ** 2))
+        for i in range(temp.shape[0]): temp[i, np.floor(new_s ** 2 / 2).astype(int) + new_s ** 2 * i] = 1
+        return torch.norm(Vmat @ torch.t(out) - torch.from_numpy(temp).float().cuda())

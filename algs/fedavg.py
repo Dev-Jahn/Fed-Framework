@@ -5,7 +5,7 @@ from torch import optim
 
 from data.dataloader import get_dataloader
 from losses import build_loss
-from metrics.basic import compute_accuracy
+from metrics.basic import AverageMeter, compute_accuracy
 from utils import save_model
 
 logger = logging.getLogger(__name__)
@@ -36,10 +36,13 @@ def train_local(net_id, net, trainloader, testloader, comm_round, args, device):
                               weight_decay=args.reg)
     criterion = build_loss(args.loss)
 
-    cnt = 0
-
+    metrics = {
+        'total_loss': AverageMeter(),
+        args.loss: AverageMeter(),
+    }
     for epoch in range(1, args.epochs + 1):
-        epoch_loss_collector = []
+        metrics['total_loss'].reset()
+        metrics[args.loss].reset()
         for batch_idx, (x, target) in enumerate(trainloader):
             x, target = x.to(device), target.to(device)
 
@@ -49,22 +52,22 @@ def train_local(net_id, net, trainloader, testloader, comm_round, args, device):
             target = target.long()
 
             out = net(x)
-            if args.loss == 'orth':
-                loss = criterion(out, target, net, args.odecay, device)
-            else:
-                loss = criterion(out, target)
+            loss, additional = criterion(out, target, net, args.odecay)
             loss.backward()
             optimizer.step()
+            # Metrics update
+            metrics['total_loss'].update(loss, len(x))
+            metrics[args.loss].update(additional, len(x))
 
-            cnt += 1
-            epoch_loss_collector.append(loss.item())
-
-        epoch_loss = sum(epoch_loss_collector) / len(epoch_loss_collector)
-        logger.info(f'Epoch: {epoch:>3} | Loss: {epoch_loss:.6f}')
+        # Logging
+        logger.info(f'Epoch: {epoch:>3} | Loss: {metrics["total_loss"].avg:.6f}')
         wandb.log(
             data={
                 f'Client {net_id}': {
-                    'train': {'Loss': epoch_loss},
+                    'train': {
+                        'Loss': metrics['total_loss'].avg,
+                        args.loss: metrics[args.loss].avg
+                    },
                 },
                 'epochsum': (comm_round - 1) * args.epochs + epoch
             }
