@@ -52,7 +52,7 @@ def train_local(net_id, net, trainloader, testloader, comm_round, args, device):
             target = target.long()
 
             out = net(x)
-            loss, additional = criterion(out, target, net, args.odecay)
+            loss, additional = criterion(out, target, model=net, decay=args.odecay)
             loss.backward()
             optimizer.step()
             # Metrics update
