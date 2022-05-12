@@ -106,7 +106,8 @@ class OCNNLoss(CELossBase):
             if m.__dict__.get('kernel_size') == (1, 1)
         ]
         # Conv1 except first layer(according to original paper)
-        diffs += [v for k, v in list(model.named_modules()) if 'conv1' in k][1:]
+        diffs += [self.deconv_orth_dist(m.weight, stride=m.stride, padding=m.padding) for k, m in
+                  list(model.named_modules()) if 'conv1' in k][1:]
         # Conv2 (Experimental)
         # diffs += [v for k, v in list(model.named_modules()) if 'conv2' in k]
         oloss = sum(diffs)
