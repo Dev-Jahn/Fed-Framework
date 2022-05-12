@@ -4,7 +4,7 @@ from functools import partial
 from typing import Optional, Callable
 
 import urllib, shutil, zipfile, tarfile, gzip
-import accimage
+# import accimage
 import PIL
 from PIL import Image
 import numpy as np
@@ -24,14 +24,14 @@ logger = logging.getLogger(__name__)
 
 IMG_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm', '.tif', '.tiff', '.webp')
 
-
-def accimage_loader(path):
-    try:
-        return accimage.Image(path)
-    except IOError:
-        # Potentially a decoding problem, fall back to PIL.Image
-        return pil_loader(path)
-
+#
+# def accimage_loader(path):
+#     try:
+#         return accimage.Image(path)
+#     except IOError:
+#         # Potentially a decoding problem, fall back to PIL.Image
+#         return pil_loader(path)
+#
 
 def pil_loader(path):
     # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
@@ -41,10 +41,10 @@ def pil_loader(path):
 
 
 def default_loader(path):
-    if get_image_backend() == 'accimage':
-        return accimage_loader(path)
-    else:
-        return pil_loader(path)
+    # if get_image_backend() == 'accimage':
+    #     return accimage_loader(path)
+    # else:
+    return pil_loader(path)
 
 
 class CustomTensorDataset(data.TensorDataset):

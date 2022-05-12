@@ -10,25 +10,32 @@ python experiments.py --name test \
 --ngpu 1 --device cuda:0
 
 # baseline
-python experiments.py --name WRN-28-10-CE \
---arch WRN --dataset cifar10 --datadir ~/data \
+python experiments.py --name RESNET-18-CE \
+--arch resnet18 --dataset cifar10 --datadir ~/data \
 --batch-size 128 --lr 0.1 --epochs 10 --dropout 0.3 --optimizer sgd --momentum 0.9 --loss ce \
 --alg fedavg --comm_round 50 \
---n_clients 10 --partition noniid-labeldir --beta 0.5 \
+--n_clients 10 --partition noniid-labeldir --beta 0.1 \
 --save_round 10 --save_local --save_epoch 10 \
 --ngpu 1 --device cuda:0
 
 # srip
-python experiments.py --name WRN-28-10-ORTH \
---arch WRN --dataset cifar10 --datadir ~/data \
---batch-size 128 --lr 0.1 --epochs 10 --dropout 0.3 --optimizer sgd --momentum 0.9 --loss orth \
---odecay 1e-2
+python experiments.py --name RESNET-18-SRIP\
+--arch resnet18 --dataset cifar10 --datadir ~/data \
+--batch-size 128 --lr 0.1 --epochs 10 --dropout 0.3 --optimizer sgd --momentum 0.9 --loss srip \
 --alg fedavg --comm_round 50 \
---n_clients 10 --partition noniid-labeldir --beta 0.5 \
+--n_clients 10 --partition noniid-labeldir --beta 0.1 \
 --save_round 10 --save_local --save_epoch 10 \
 --ngpu 1 --device cuda:0
 
 # ocnn
+python experiments.py --name RESNET-18-OCNN \
+--arch resnet18 --dataset cifar10 --datadir ~/data \
+--batch-size 128 --lr 0.1 --epochs 10 --dropout 0.3 --optimizer sgd --momentum 0.9 --loss ocnn \
+--alg fedavg --comm_round 50 \
+--n_clients 10 --partition noniid-labeldir --beta 0.1 \
+--save_round 10 --save_local --save_epoch 10 \
+--ngpu 1 --device cuda:0
+
 
 # iid
 python experiments.py --name R50-IID \
