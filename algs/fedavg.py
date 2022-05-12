@@ -57,7 +57,7 @@ def train_local(net_id, net, trainloader, testloader, comm_round, args, device):
             optimizer.step()
             # Metrics update
             metrics['total_loss'].update(loss, len(x))
-            metrics[args.loss].update(additional, len(x))
+            metrics[args.loss].update(additional if additional else loss, len(x))
 
         # Logging
         logger.info(f'Epoch: {epoch:>3} | Loss: {metrics["total_loss"].avg:.6f}')

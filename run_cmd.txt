@@ -2,8 +2,8 @@ wandb login
 
 # just for test
 python experiments.py --name test \
---model resnet18 --dataset cifar10 --datadir ~/data \
---batch-size 128 --lr 0.1 --epochs 1 --dropout 0.3 --optimizer sgd --momentum 0.9 --loss ce\
+--arch resnet18 --dataset cifar10 --datadir ~/data \
+--batch-size 128 --lr 0.1 --epochs 1 --dropout 0.3 --optimizer sgd --momentum 0.9 --loss ce \
 --alg fedavg --comm_round 1 \
 --n_clients 3 --partition noniid-labeldir --beta 0.1 \
 --save_round 1 --save_local --save_epoch 1 \
@@ -11,7 +11,7 @@ python experiments.py --name test \
 
 # baseline
 python experiments.py --name WRN-28-10-CE \
---model WRN --dataset cifar10 --datadir ~/data \
+--arch WRN --dataset cifar10 --datadir ~/data \
 --batch-size 128 --lr 0.1 --epochs 10 --dropout 0.3 --optimizer sgd --momentum 0.9 --loss ce \
 --alg fedavg --comm_round 50 \
 --n_clients 10 --partition noniid-labeldir --beta 0.5 \
@@ -20,7 +20,7 @@ python experiments.py --name WRN-28-10-CE \
 
 # srip
 python experiments.py --name WRN-28-10-ORTH \
---model WRN --dataset cifar10 --datadir ~/data \
+--arch WRN --dataset cifar10 --datadir ~/data \
 --batch-size 128 --lr 0.1 --epochs 10 --dropout 0.3 --optimizer sgd --momentum 0.9 --loss orth \
 --odecay 1e-2
 --alg fedavg --comm_round 50 \
