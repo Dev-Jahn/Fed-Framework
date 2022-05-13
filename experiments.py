@@ -141,7 +141,8 @@ if __name__ == '__main__':
         )
     else:
         trainloader_global, testloader_global, trainset_global, testset_global = get_dataloader(
-            args.dataset, args.datadir, args.batch_size, 32
+            args.dataset, args.datadir, args.batch_size, 32,
+            num_workers=(args.num_workers, args.num_workers)
         )
     logger.info(f'Global train size: {len(trainset_global)}')
     logger.info(f'Global test  size: {len(testset_global)}')
