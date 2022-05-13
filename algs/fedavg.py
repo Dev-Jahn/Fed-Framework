@@ -2,6 +2,7 @@ import logging
 
 import wandb
 from torch import optim
+from torch.utils.data import DataLoader
 
 from losses import build_loss
 from metrics.basic import AverageMeter, compute_accuracy
@@ -106,7 +107,7 @@ def train_local(net_id, net, trainloader, testloader, comm_round, args, device):
     return train_acc, test_acc
 
 
-def train_nets(nets, selected, args, net_dataidx_map, loaders, comm_round, testloader=None, device='cuda'):
+def train_nets(nets, selected, args, net_dataidx_map, loaderargs, comm_round, testargs=None, device='cuda'):
     avg_acc = 0.0
 
     for net_id, net in nets.items():
@@ -118,7 +119,11 @@ def train_nets(nets, selected, args, net_dataidx_map, loaders, comm_round, testl
         logger.info(f'Training client {net_id:>3} with {len(dataidxs):>6} data')
 
         net.to(device)
-        trainacc, testacc = train_local(net_id, net, loaders[net_id], testloader, comm_round, args, device=device)
+        loader = DataLoader(loaderargs[net_id])
+        testloader = DataLoader(**testargs)
+        trainacc, testacc = train_local(net_id, net, loader, testloader, comm_round, args, device=device)
+        del loader
+        del testloader
         net.cpu()
 
         avg_acc += testacc

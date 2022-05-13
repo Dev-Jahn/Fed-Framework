@@ -14,7 +14,7 @@ from algs.fedavg import train_nets
 from algs.fednova import local_train_net_fednova
 from algs.fedprox import local_train_net_fedprox
 from algs.scaffold import local_train_net_scaffold
-from data.dataloader import get_dataloader
+from data.dataloader import get_loaderargs
 from data.partition import partition_data
 from metrics.basic import compute_accuracy
 from models.nets import init_nets
@@ -120,9 +120,9 @@ if __name__ == '__main__':
     else:
         noise_level = lambda net_idx: args.noise / (args.n_clients - 1) * net_idx
         dl_args = lambda net_idx: {}
-    trainloaders, _, trainsets, testsets = [
+    trainargs, _, trainsets, testsets = [
         {idx: obj for idx, obj in enumerate(tup)} for tup in list(zip(
-            *[get_dataloader(
+            *[get_loaderargs(
                 args.dataset, args.datadir, args.batch_size, 32,
                 net_dataidx_map[i], noise_level(i), **dl_args(i),
                 num_workers=(args.num_workers, args.num_workers)
@@ -131,16 +131,18 @@ if __name__ == '__main__':
     ]
     # if noise
     if args.noise > 0:
-        trainloader_global = DataLoader(
-            dataset=ConcatDataset(trainsets), batch_size=args.batch_size, shuffle=True,
+        trainset_global = ConcatDataset(trainsets)
+        testset_global = ConcatDataset(testsets)
+        trainargs_global = DataLoader(
+            dataset=trainset_global, batch_size=args.batch_size, shuffle=True,
             pin_memory=True, num_workers=args.num_workers, persistent_workers=True
         )
-        testloader_global = DataLoader(
-            dataset=ConcatDataset(testsets), batch_size=args.batch_size, shuffle=False,
+        testargs_global = DataLoader(
+            dataset=testset_global, batch_size=args.batch_size, shuffle=False,
             pin_memory=True, num_workers=args.num_workers, persistent_workers=True
         )
     else:
-        trainloader_global, testloader_global, trainset_global, testset_global = get_dataloader(
+        trainargs_global, testargs_global, trainset_global, testset_global = get_loaderargs(
             args.dataset, args.datadir, args.batch_size, 32,
             num_workers=(args.num_workers, args.num_workers)
         )
@@ -182,7 +184,7 @@ if __name__ == '__main__':
                 for idx in selected:
                     nets[idx].load_state_dict(global_para)
 
-            train_nets(nets, selected, args, net_dataidx_map, trainloaders, round_, testloader=testloader_global,
+            train_nets(nets, selected, args, net_dataidx_map, trainargs, round_, testargs=testargs_global,
                        device=device)
 
             # update global model
@@ -200,10 +202,14 @@ if __name__ == '__main__':
             global_model.load_state_dict(global_para)
 
             global_model.to(device)
+            trainloader_global = DataLoader(**trainargs_global)
             train_acc = compute_accuracy(global_model, trainloader_global, device=device)
+            del trainloader_global
+            testloader_global = DataLoader(**testargs_global)
             test_acc, conf_matrix = compute_accuracy(
                 global_model, testloader_global, get_confusion_matrix=True, device=device
             )
+            del testloader_global
             global_model.cpu()
 
             logger.info(f'>> Global Train accuracy: {train_acc * 100:5.2f} %')
@@ -251,7 +257,7 @@ if __name__ == '__main__':
                 for idx in selected:
                     nets[idx].load_state_dict(global_para)
 
-            local_train_net_fedprox(nets, selected, global_model, args, net_dataidx_map, test_dl=testloader_global,
+            local_train_net_fedprox(nets, selected, global_model, args, net_dataidx_map, testargs=testargs_global,
                                     device=device)
             global_model.to('cpu')
 
@@ -268,14 +274,17 @@ if __name__ == '__main__':
                     for key in net_para:
                         global_para[key] += net_para[key] * fed_avg_freqs[idx]
             global_model.load_state_dict(global_para)
-
+            trainloader_global = DataLoader(**trainargs_global)
             logger.info('global n_training: %d' % len(trainloader_global))
-            logger.info('global n_test: %d' % len(testloader_global))
 
             train_acc = compute_accuracy(global_model, trainloader_global, device=device)
+            del trainloader_global
+            testloader_global = DataLoader(**testargs_global)
+            logger.info('global n_test: %d' % len(testloader_global))
             test_acc, conf_matrix = compute_accuracy(
                 global_model, testloader_global, get_confusion_matrix=True, device=device
             )
+            del testloader_global
 
             logger.info('>> Global Model Train accuracy: %f' % train_acc)
             logger.info('>> Global Model Test accuracy: %f' % test_acc)
@@ -315,7 +324,7 @@ if __name__ == '__main__':
                     nets[idx].load_state_dict(global_para)
 
             local_train_net_scaffold(nets, selected, global_model, c_nets, c_global, args, net_dataidx_map,
-                                     test_dl=testloader_global, device=device)
+                                     testargs=testargs_global, device=device)
 
             # update global model
             total_data_points = sum([len(net_dataidx_map[r]) for r in selected])
@@ -331,14 +340,18 @@ if __name__ == '__main__':
                         global_para[key] += net_para[key] * fed_avg_freqs[idx]
             global_model.load_state_dict(global_para)
 
-            logger.info('global n_training: %d' % len(trainloader_global))
-            logger.info('global n_test: %d' % len(testloader_global))
 
             global_model.to('cpu')
+            trainloader_global = DataLoader(**trainargs_global)
+            logger.info('global n_training: %d' % len(trainloader_global))
             train_acc = compute_accuracy(global_model, trainloader_global, device=device)
+            del trainloader_global
+            testloader_global = DataLoader(**testargs_global)
+            logger.info('global n_test: %d' % len(testloader_global))
             test_acc, conf_matrix = compute_accuracy(
                 global_model, testloader_global, get_confusion_matrix=True, device=device
             )
+            del testloader_global
 
             logger.info('>> Global Model Train accuracy: %f' % train_acc)
             logger.info('>> Global Model Test accuracy: %f' % test_acc)
@@ -386,7 +399,7 @@ if __name__ == '__main__':
                     nets[idx].load_state_dict(global_para)
 
             _, a_list, d_list, n_list = local_train_net_fednova(nets, selected, global_model, args, net_dataidx_map,
-                                                                test_dl=testloader_global, device=device)
+                                                                testargs=testargs_global, device=device)
             total_n = sum(n_list)
             d_total_round = copy.deepcopy(global_model.state_dict())
             for key in d_total_round:
@@ -412,14 +425,18 @@ if __name__ == '__main__':
                     updated_model[key] -= coeff * d_total_round[key]
             global_model.load_state_dict(updated_model)
 
-            logger.info('global n_training: %d' % len(trainloader_global))
-            logger.info('global n_test: %d' % len(testloader_global))
 
             global_model.to('cpu')
+            trainloader_global = DataLoader(**trainargs_global)
+            logger.info('global n_training: %d' % len(trainloader_global))
             train_acc = compute_accuracy(global_model, trainloader_global, device=device)
+            del trainloader_global
+            testloader_global = DataLoader(**testargs_global)
+            logger.info('global n_test: %d' % len(testloader_global))
             test_acc, conf_matrix = compute_accuracy(
                 global_model, testloader_global, get_confusion_matrix=True, device=device
             )
+            del testloader_global
 
             logger.info('>> Global Model Train accuracy: %f' % train_acc)
             logger.info('>> Global Model Test accuracy: %f' % test_acc)
@@ -428,7 +445,7 @@ if __name__ == '__main__':
         logger.info('Initializing nets')
         nets, local_model_meta_data, layer_type = init_nets(args.dropout, args.n_clients, args)
         arr = np.arange(args.n_clients)
-        train_nets(nets, arr, args, net_dataidx_map, testloader=testloader_global, device=device)
+        train_nets(nets, arr, args, net_dataidx_map, testargs=testargs_global, device=device)
     else:
         raise NotImplementedError()
 
