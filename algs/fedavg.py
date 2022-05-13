@@ -43,6 +43,7 @@ def train_local(net_id, net, trainloader, testloader, comm_round, args, device):
     for epoch in range(1, args.epochs + 1):
         metrics['total_loss'].reset()
         metrics[args.loss].reset()
+        print(type())
         for batch_idx, (x, target) in enumerate(trainloader):
             x, target = x.to(device), target.to(device)
 
@@ -119,7 +120,7 @@ def train_nets(nets, selected, args, net_dataidx_map, loaderargs, comm_round, te
         logger.info(f'Training client {net_id:>3} with {len(dataidxs):>6} data')
 
         net.to(device)
-        loader = DataLoader(loaderargs[net_id])
+        loader = DataLoader(**loaderargs[net_id])
         testloader = DataLoader(**testargs)
         trainacc, testacc = train_local(net_id, net, loader, testloader, comm_round, args, device=device)
         del loader
