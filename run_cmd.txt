@@ -19,7 +19,7 @@ python experiments.py --name RESNET-18-CE \
 --ngpu 1 --device cuda:0
 
 # srip
-python experiments.py --name RESNET-18-SRIP\
+python experiments.py --name RESNET-18-SRIP \
 --arch resnet18 --dataset cifar10 --datadir ~/data \
 --batch-size 128 --lr 0.1 --epochs 10 --dropout 0.3 --optimizer sgd --momentum 0.9 --loss srip \
 --alg fedavg --comm_round 50 \
