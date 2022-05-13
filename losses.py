@@ -44,7 +44,7 @@ class SRIPLoss(CELossBase):
         decay = kwargs.get('decay')
         assert model and decay
 
-        celoss = super().forward(input, target)
+        celoss, _ = super().forward(input, target)
         oloss = self.l2_reg_ortho(model)
         return celoss + decay * oloss, oloss
 
@@ -98,7 +98,7 @@ class OCNNLoss(CELossBase):
         decay = kwargs.get('decay')
         assert model and decay
 
-        celoss = super().forward(input, target)
+        celoss, _ = super().forward(input, target)
         # TODO Model-wise tweak needed
         # 1x1 Conv
         diffs = [
