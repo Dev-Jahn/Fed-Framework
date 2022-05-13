@@ -43,7 +43,6 @@ def train_local(net_id, net, trainloader, testloader, comm_round, args, device):
     for epoch in range(1, args.epochs + 1):
         metrics['total_loss'].reset()
         metrics[args.loss].reset()
-        print(type())
         for batch_idx, (x, target) in enumerate(trainloader):
             x, target = x.to(device), target.to(device)
 
