@@ -38,7 +38,7 @@ class AddGaussianNoise(object):
 
 
 def get_dataloader(dataset, datadir, train_bs, test_bs, dataidxs=None, noise_level=0, net_id=None, total=0,
-                   augment=True):
+                   augment=True, num_workers=(0, 0)):
     if dataset in ('mnist', 'femnist', 'fmnist', 'cifar10', 'svhn', 'generated', 'covtype', 'a9a', 'rcv1', 'SUSY'):
         if dataset == 'mnist':
             dl_obj = MNIST_truncated
@@ -107,7 +107,9 @@ def get_dataloader(dataset, datadir, train_bs, test_bs, dataidxs=None, noise_lev
                           transform=transform_train if augment else transform_test)
         test_ds = dl_obj(datadir, train=False, transform=transform_test)
 
-        train_dl = data.DataLoader(dataset=train_ds, batch_size=train_bs, shuffle=True, drop_last=False)
-        test_dl = data.DataLoader(dataset=test_ds, batch_size=test_bs, shuffle=False, drop_last=False)
+        train_dl = data.DataLoader(dataset=train_ds, batch_size=train_bs, shuffle=True, drop_last=False,
+                                   pin_memory=True, num_workers=num_workers[0], persistent_workers=True)
+        test_dl = data.DataLoader(dataset=test_ds, batch_size=test_bs, shuffle=False, drop_last=False,
+                                  pin_memory=True, num_workers=num_workers[1], persistent_workers=True)
 
     return train_dl, test_dl, train_ds, test_ds

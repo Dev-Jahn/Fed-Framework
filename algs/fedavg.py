@@ -3,7 +3,6 @@ import logging
 import wandb
 from torch import optim
 
-from data.dataloader import get_dataloader
 from losses import build_loss
 from metrics.basic import AverageMeter, compute_accuracy
 from utils import save_model

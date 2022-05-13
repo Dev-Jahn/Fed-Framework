@@ -66,6 +66,7 @@ def get_args():
                         help='Different level of noise or different space of noise')
     parser.add_argument('--sample', type=float, default=1, help='Sample ratio for each communication round')
     # Misc.
+    parser.add_argument('--num_workers', default=8, type=int, help='core usage (default: 1)')
     parser.add_argument('--ngpu', default=1, type=int, help='total number of gpus (default: 1)')
     parser.add_argument('--device', type=str, default='cuda:0', help='The device to run the program')
     parser.add_argument('--amp', action='store_true', help='Turn Automatic Mixed Precision on')
@@ -119,18 +120,25 @@ if __name__ == '__main__':
     else:
         noise_level = lambda net_idx: args.noise / (args.n_clients - 1) * net_idx
         dl_args = lambda net_idx: {}
-    trainloaders, testloaders, trainsets, testsets = [
+    trainloaders, _, trainsets, testsets = [
         {idx: obj for idx, obj in enumerate(tup)} for tup in list(zip(
             *[get_dataloader(
                 args.dataset, args.datadir, args.batch_size, 32,
-                net_dataidx_map[i], noise_level(i), **dl_args(i)
+                net_dataidx_map[i], noise_level(i), **dl_args(i),
+                num_workers=(args.num_workers, args.num_workers)
             ) for i in range(args.n_clients)]
         ))
     ]
     # if noise
     if args.noise > 0:
-        trainloader_global = DataLoader(dataset=ConcatDataset(trainsets), batch_size=args.batch_size, shuffle=True)
-        testloader_global = DataLoader(dataset=ConcatDataset(testsets), batch_size=32, shuffle=False)
+        trainloader_global = DataLoader(
+            dataset=ConcatDataset(trainsets), batch_size=args.batch_size, shuffle=True,
+            pin_memory=True, num_workers=args.num_workers, persistent_workers=True
+        )
+        testloader_global = DataLoader(
+            dataset=ConcatDataset(testsets), batch_size=args.batch_size, shuffle=False,
+            pin_memory=True, num_workers=args.num_workers, persistent_workers=True
+        )
     else:
         trainloader_global, testloader_global, trainset_global, testset_global = get_dataloader(
             args.dataset, args.datadir, args.batch_size, 32
