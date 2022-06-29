@@ -16,10 +16,10 @@ from utils import mkdirs
 logger = logging.getLogger(__name__)
 
 
-def record_net_data_stats(y_train, net_dataidx_map, logdir):
-    # fpath = os.path.join(logdir, f'{}')
-    # with open(fpath, 'w') as f:
-    #     json.dump(net_dataidx_map, f, indent=4, sort_keys=True)
+def record_net_data_stats(y_train, net_dataidx_map, logdir, filename):
+    fpath = os.path.join(logdir, f'{filename}')
+    with open(fpath, 'w') as f:
+        json.dump(net_dataidx_map, f, indent=4, sort_keys=True)
 
     net_cls_counts = {}
     for net_i, dataidx in net_dataidx_map.items():
@@ -31,9 +31,9 @@ def record_net_data_stats(y_train, net_dataidx_map, logdir):
     return net_cls_counts
 
 
-def partition_data(dataset, datadir, logdir, partition, n_clients, beta=0.4):
-    # np.random.seed(2020)
-    # torch.manual_seed(2020)
+def partition_data(dataset, datadir, logdir, partition, n_clients, beta=0.4, seed=42):
+    np.random.seed(seed)
+    torch.manual_seed(seed)
 
     if dataset == 'mnist':
         X_train, y_train, X_test, y_test = load_mnist_data(datadir)
@@ -301,15 +301,13 @@ def partition_data(dataset, datadir, logdir, partition, n_clients, beta=0.4):
             for j in batch_idxs[i]:
                 net_dataidx_map[i] = np.append(net_dataidx_map[i], np.arange(user[j], user[j + 1]))
 
-    traindata_cls_counts = record_net_data_stats(y_train, net_dataidx_map, logdir)
-    return (X_train, y_train, X_test, y_test, net_dataidx_map, traindata_cls_counts)
+    filename = f'{dataset}-{partition}-{n_clients}clients-beta{beta}.json'
+    traindata_cls_counts = record_net_data_stats(y_train, net_dataidx_map, logdir, filename)
+    return net_dataidx_map, traindata_cls_counts
 
 
-def get_partition_dict(dataset, partition, n_clients, init_seed=0, datadir='./data', logdir='./logs', beta=0.5):
-    seed = init_seed
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    X_train, y_train, X_test, y_test, net_dataidx_map, traindata_cls_counts = partition_data(
-        dataset, datadir, logdir, partition, n_clients, beta=beta
+def get_partition_dict(dataset, partition, n_clients, seed=42, datadir='./data', logdir='./logs', beta=0.5):
+    net_dataidx_map, _ = partition_data(
+        dataset, datadir, logdir, partition, n_clients, beta=beta, seed=seed
     )
     return net_dataidx_map

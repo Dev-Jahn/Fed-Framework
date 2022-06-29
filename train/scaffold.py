@@ -5,7 +5,7 @@ import torch
 from torch import optim, nn
 
 from metrics.basic import compute_accuracy
-from data.dataloader import get_loaderargs
+from data.dataloader import get_dataset
 
 logger = logging.getLogger()
 
@@ -112,13 +112,13 @@ def local_train_net_scaffold(nets, selected, global_model, c_nets, c_global, arg
             noise_level = 0
 
         if args.noise_type == 'space':
-            train_dl_local, test_dl_local, _, _ = get_loaderargs(args.dataset, args.datadir, args.batch_size, 32,
-                                                                 dataidxs, noise_level, net_id, args.n_clients - 1)
+            train_dl_local, test_dl_local, _, _ = get_dataset(args.dataset, args.datadir, args.batch_size, 32,
+                                                              dataidxs, noise_level, net_id, args.n_clients - 1)
         else:
             noise_level = args.noise / (args.n_clients - 1) * net_id
-            train_dl_local, test_dl_local, _, _ = get_loaderargs(args.dataset, args.datadir, args.batch_size, 32,
-                                                                 dataidxs, noise_level)
-        train_dl_global, test_dl_global, _, _ = get_loaderargs(args.dataset, args.datadir, args.batch_size, 32)
+            train_dl_local, test_dl_local, _, _ = get_dataset(args.dataset, args.datadir, args.batch_size, 32,
+                                                              dataidxs, noise_level)
+        train_dl_global, test_dl_global, _, _ = get_dataset(args.dataset, args.datadir, args.batch_size, 32)
         n_epoch = args.epochs
 
         trainacc, testacc, c_delta_para = train_net_scaffold(

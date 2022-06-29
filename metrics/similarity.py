@@ -28,16 +28,16 @@ def kernel_HSIC(X, Y, sigma, device):
     return torch.sum(centering(rbf(X, sigma), device) * centering(rbf(Y, sigma), device))
 
 
-def linear_HSIC(X, Y):
-    L_X = np.dot(X, X.T)
-    L_Y = np.dot(Y, Y.T)
-    return np.sum(centering(L_X) * centering(L_Y))
+def linear_HSIC(X, Y, device):
+    L_X = torch.matmul(X, X.T)
+    L_Y = torch.matmul(Y, Y.T)
+    return torch.sum(centering(L_X, device) * centering(L_Y, device))
 
 
-def linear_CKA(X, Y):
-    hsic = linear_HSIC(X, Y)
-    var1 = np.sqrt(linear_HSIC(X, X))
-    var2 = np.sqrt(linear_HSIC(Y, Y))
+def linear_CKA(X, Y, device):
+    hsic = linear_HSIC(X, Y, device)
+    var1 = torch.sqrt(linear_HSIC(X, X, device))
+    var2 = torch.sqrt(linear_HSIC(Y, Y, device))
 
     return hsic / (var1 * var2)
 
