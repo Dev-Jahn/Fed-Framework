@@ -25,7 +25,7 @@ python experiments.py --name RESNET-18-SRIP \
 --alg fedavg --comm_round 50 \
 --n_clients 10 --partition noniid-labeldir --beta 0.1 \
 --save_round 10 --save_local --save_epoch 10 \
---ngpu 1 --device cuda:0
+--ngpu 1 --device cuda:0 --odecay 0.01
 
 # ocnn
 python experiments.py --name RESNET-18-OCNN \
@@ -34,7 +34,7 @@ python experiments.py --name RESNET-18-OCNN \
 --alg fedavg --comm_round 50 \
 --n_clients 10 --partition noniid-labeldir --beta 0.1 \
 --save_round 10 --save_local --save_epoch 10 \
---ngpu 1 --device cuda:0
+--ngpu 1 --device cuda:0 --odecay 0.1
 
 
 # iid

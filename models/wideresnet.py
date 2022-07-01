@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class BasicBlock(nn.Module):
-    def __init__(self, in_planes, out_planes, stride, dropRate=0.3):
+    def __init__(self, in_planes, out_planes, stride, drop_rate=0.3):
         super(BasicBlock, self).__init__()
         self.bn1 = nn.BatchNorm2d(in_planes)
         self.relu1 = nn.ReLU(inplace=True)
@@ -25,7 +25,7 @@ class BasicBlock(nn.Module):
                                padding=1, bias=False)
         # init.orthogonal_(self.conv2.weight, gain=np.sqrt(2))
 
-        self.droprate = dropRate
+        self.droprate = drop_rate
         self.equalInOut = (in_planes == out_planes)
         self.convShortcut = (not self.equalInOut) and nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride,
                                                                 padding=0, bias=False) or None
@@ -43,9 +43,9 @@ class BasicBlock(nn.Module):
 
 
 class NetworkBlock(nn.Module):
-    def __init__(self, nb_layers, in_planes, out_planes, block, stride, dropRate=0.3):
+    def __init__(self, nb_layers, in_planes, out_planes, block, stride, drop_rate=0.3):
         super(NetworkBlock, self).__init__()
-        self.layer = self._make_layer(block, in_planes, out_planes, nb_layers, stride, dropRate)
+        self.layer = self._make_layer(block, in_planes, out_planes, nb_layers, stride, drop_rate)
 
     def _make_layer(self, block, in_planes, out_planes, nb_layers, stride, dropRate):
         layers = []

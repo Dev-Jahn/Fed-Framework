@@ -62,14 +62,12 @@ class SRIPLoss(CELossBase):
                 wt = torch.transpose(w1, 0, 1)
                 if rows > cols:
                     m = torch.matmul(wt, w1)
-                    I = torch.eye(cols, cols)
+                    I = torch.eye(cols, cols, device=device)
                 else:
                     m = torch.matmul(w1, wt)
-                    I = torch.eye(rows, rows)
-
-                I = I.to(device)
+                    I = torch.eye(rows, rows, device=device)
                 w_tmp = (m - I)
-                b_k = torch.rand(w_tmp.shape[1], 1).to(device)
+                b_k = torch.rand(w_tmp.shape[1], 1, device=device)
 
                 v1 = torch.matmul(w_tmp, b_k)
                 norm1 = torch.norm(v1, 2)
@@ -119,14 +117,14 @@ class OCNNLoss(CELossBase):
         mat = mat.reshape((mat.shape[0], -1))
         if mat.shape[0] < mat.shape[1]:
             mat = mat.permute(1, 0)
-        return torch.norm(torch.t(mat) @ mat - torch.eye(mat.shape[1]).to(self.device))
+        return torch.norm(torch.t(mat) @ mat - torch.eye(mat.shape[1], device=self.device))
 
     def deconv_orth_dist(self, kernel, stride=2, padding=1):
         [o_c, i_c, w, h] = kernel.shape
         output = torch.conv2d(kernel, kernel, stride=stride, padding=padding)
-        target = torch.zeros((o_c, o_c, output.shape[-2], output.shape[-1])).to(self.device)
+        target = torch.zeros((o_c, o_c, output.shape[-2], output.shape[-1]), device=self.device)
         ct = int(np.floor(output.shape[-1] / 2))
-        target[:, :, ct, ct] = torch.eye(o_c).to(self.device)
+        target[:, :, ct, ct] = torch.eye(o_c, device=self.device)
         return torch.norm(output - target)
 
     def conv_orth_dist(self, kernel, stride=1):
@@ -135,9 +133,10 @@ class OCNNLoss(CELossBase):
         # half = np.floor(w/2)
         assert stride < w, "Please use matrix orthgonality instead"
         new_s = stride * (w - 1) + w  # np.int(2*(half+np.floor(half/stride))+1)
-        temp = torch.eye(new_s * new_s * i_c).reshape((new_s * new_s * i_c, i_c, new_s, new_s)).to(self.device)
+        temp = torch.eye(new_s * new_s * i_c, device=self.device).reshape((new_s * new_s * i_c, i_c, new_s, new_s))
         out = (F.conv2d(temp, kernel, stride=stride)).reshape((new_s * new_s * i_c, -1))
         Vmat = out[np.floor(new_s ** 2 / 2).astype(int)::new_s ** 2, :]
         temp = np.zeros((i_c, i_c * new_s ** 2))
-        for i in range(temp.shape[0]): temp[i, np.floor(new_s ** 2 / 2).astype(int) + new_s ** 2 * i] = 1
-        return torch.norm(Vmat @ torch.t(out) - torch.from_numpy(temp).float().to(self.device))
+        for i in range(temp.shape[0]):
+            temp[i, np.floor(new_s ** 2 / 2).astype(int) + new_s ** 2 * i] = 1
+        return torch.norm(Vmat @ torch.t(out) - torch.from_numpy(temp, ).float().to(self.device))

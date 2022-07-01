@@ -10,20 +10,19 @@ logger = logging.getLogger(__name__)
 
 def init_nets(dropout_p, n_clients, args):
     nets = {net_i: None for net_i in range(n_clients)}
-
     for net_i in range(n_clients):
         if args.arch == 'wrn28-10':
             if args.dataset == 'cifar10':
-                net = WideResNet(depth=28, num_classes=10, widen_factor=10, dropRate=0.3)
+                net = WideResNet(depth=28, num_classes=10, widen_factor=10, dropRate=args.dropout)
             elif args.dataset == 'cifar100':
-                net = WideResNet(depth=28, num_classes=100, widen_factor=10, dropRate=0.3)
+                net = WideResNet(depth=28, num_classes=100, widen_factor=10, dropRate=args.dropout)
             else:
                 raise NotImplementedError('Unimplemented')
         elif args.arch == 'wrn40-4':
             if args.dataset == 'cifar10':
-                net = WideResNet(depth=40, num_classes=10, widen_factor=4, dropRate=0.3)
+                net = WideResNet(depth=40, num_classes=10, widen_factor=4, dropRate=args.dropout)
             elif args.dataset == 'cifar100':
-                net = WideResNet(depth=40, num_classes=100, widen_factor=4, dropRate=0.3)
+                net = WideResNet(depth=40, num_classes=100, widen_factor=4, dropRate=args.dropout)
             else:
                 raise NotImplementedError('Unimplemented')
         elif args.dataset == "generated":
