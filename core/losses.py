@@ -1,3 +1,5 @@
+from typing import Tuple, Union, Any
+
 import numpy as np
 import torch
 from torch import nn, Tensor
@@ -25,7 +27,7 @@ class CELossBase(nn.CrossEntropyLoss):
                  reduce=None, reduction: str = 'mean') -> None:
         super(CELossBase, self).__init__(weight, size_average, ignore_index, reduce, reduction)
 
-    def forward(self, input: Tensor, target: Tensor, *args, **kwargs) -> Tensor:
+    def forward(self, input: Tensor, target: Tensor, *args, **kwargs) -> tuple[Tensor, None]:
         return super().forward(input, target), None
 
 
@@ -92,7 +94,7 @@ class OCNNLoss(CELossBase):
         super(OCNNLoss, self).__init__(*args, **kwargs)
         self.device = None
 
-    def forward(self, input: Tensor, target: Tensor, *args, **kwargs) -> Tensor:
+    def forward(self, input: Tensor, target: Tensor, *args, **kwargs) -> tuple[Any, Union[Tensor, int]]:
         model = kwargs.get('model')
         self.device = next(model.parameters()).device
         decay = kwargs.get('decay')

@@ -65,26 +65,30 @@ class FedAvg(AlgBase):
         metrics = {
             'total_loss': AverageMeter(),
             args.loss: AverageMeter(),
+            'train_acc': AverageMeter(),
         }
 
         for epoch in range(1, args.epochs + 1):
             metrics['total_loss'].reset()
             metrics[args.loss].reset()
-            for batch_idx, (x, target) in enumerate(trainloader):
-                x, target = x.to(device), target.to(device)
+            metrics['train_acc'].reset()
+            for data, target in trainloader:
+                data, target = data.to(device), target.to(device)
 
                 optimizer.zero_grad()
-                x.requires_grad = True
+                data.requires_grad = True
                 target.requires_grad = False
                 target = target.long()
 
-                out = net(x)
+                out = net(data)
                 loss, additional = self.criterion(out, target, model=net, decay=args.odecay)
                 loss.backward()
                 optimizer.step()
                 # Metrics update
-                metrics['total_loss'].update(loss, len(x))
-                metrics[args.loss].update(additional if additional else loss, len(x))
+                acc = sum(target == out.cpu().clone().detach().argmax(1)).item() / target.size(0)
+                metrics['total_loss'].update(loss, len(data))
+                metrics[args.loss].update(additional if additional else loss, len(data))
+                metrics['train_acc'].update(acc, len(data))
 
             # Logging
             logger.info(f'Epoch: {epoch:>3} | Loss: {metrics["total_loss"].avg:.6f}')
@@ -93,7 +97,8 @@ class FedAvg(AlgBase):
                     f'Client {net_idx}': {
                         'train': {
                             'Loss': metrics['total_loss'].avg,
-                            args.loss: metrics[args.loss].avg
+                            args.loss: metrics[args.loss].avg,
+                            'train_acc': metrics['train_acc'].avg
                         },
                     },
                     'epochsum': (self.round - 1) * args.epochs + epoch
@@ -105,18 +110,6 @@ class FedAvg(AlgBase):
             cond_epoch = (epoch % args.save_epoch == 0) or epoch == args.epochs
             if args.save_local and cond_comm and cond_epoch:
                 save_model(net, args.name, args.modeldir, f'comm{self.round:03}-epoch{epoch:03}-CLIENT{net_idx:02}')
-
-            # calc acc for local (optional)
-            # train_acc = compute_accuracy(net, train_dataloader, device=device)
-            # test_acc, conf_matrix = compute_accuracy(net, test_dataloader, get_confusion_matrix=True, device=device)
-
-            # if epoch % 10 == 0:
-            #     logger.info('Epoch: %d Loss: %f' % (epoch, epoch_loss))
-            #     train_acc = compute_accuracy(net, train_dataloader, device=device)
-            #     test_acc, conf_matrix = compute_accuracy(net, test_dataloader, get_confusion_matrix=True, device=device)
-            #
-            #     logger.info('>> Training accuracy: %f' % train_acc)
-            #     logger.info('>> Test accuracy: %f' % test_acc)
 
         train_acc = compute_accuracy(net, trainloader, device=device)
         test_acc, conf_matrix = compute_accuracy(net, testloader, get_confusion_matrix=True, device=device)
@@ -215,7 +208,7 @@ class FedProx(AlgBase):
 
         for epoch in range(1, args.epochs + 1):
             epoch_loss_collector = []
-            for batch_idx, (x, target) in enumerate(train_dataloader):
+            for batch_idx, (x, target) in enumerate(trainloader):
                 x, target = x.to(device), target.to(device)
 
                 optimizer.zero_grad()
@@ -237,8 +230,8 @@ class FedProx(AlgBase):
             epoch_loss = sum(epoch_loss_collector) / len(epoch_loss_collector)
             logger.info('Epoch: %d Loss: %f' % (epoch, epoch_loss))
 
-        train_acc = compute_accuracy(net, train_dataloader, device=device)
-        test_acc, conf_matrix = compute_accuracy(net, test_dataloader, get_confusion_matrix=True, device=device)
+        train_acc = compute_accuracy(net, trainloader, device=device)
+        test_acc, conf_matrix = compute_accuracy(net, testloader, get_confusion_matrix=True, device=device)
 
         logger.info('>> Training accuracy: %f' % train_acc)
         logger.info('>> Test accuracy: %f' % test_acc)
