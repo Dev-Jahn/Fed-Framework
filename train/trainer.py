@@ -9,14 +9,15 @@ from data.dataloader import get_dataset
 from data.partition import partition_data
 from metrics.basic import compute_accuracy
 from models.nets import init_nets
-from train.algs import FedAvg, FedProx, SCAFFOLD, FedNova
+from train.algs import FedAvg, FedProx, SCAFFOLD, FedNova, MOON
 from utils import save_model
 
 ALGS = {
     'fedavg': FedAvg,
     'fedprox': FedProx,
     'scaffold': SCAFFOLD,
-    'fednova': FedNova
+    'fednova': FedNova,
+    'moon': MOON
 }
 logger = logging.getLogger(__name__)
 
@@ -25,29 +26,31 @@ class FederatedTrainer:
     def __init__(self, alg, args):
         if alg not in ALGS.keys():
             raise NotImplementedError(f'Unsupported training algorithm "{alg}"')
-        self.alg = ALGS[alg]()
         self.args = args
 
         self.local_models = None
         self.global_model = None
         self.trainloader_global = None
         self.testloader_global = None
-        self.datamap = None
-        self.trainsets = []
-        self.testsets = []
-        self.data_cls_counts = 0
 
-    def prepare(self):
-        args = self.args
-        # Data partitioning
         logger.info('Partitioning data...')
         self.datamap, self.data_cls_counts = partition_data(
             args.dataset, args.datadir, args.logdir, args.partition, args.n_clients, beta=args.beta, seed=args.seed
         )
+        self.alg = ALGS[alg](self, self.datamap, args)
+
+        self.trainsets = []
+        self.testsets = []
+
+    def prepare(self):
+        args = self.args
+        # Data partitioning
 
         # Prepare dataset
-        self.trainsets = [get_dataset(args.dataset, args.datadir, self.datamap, i, True, args) for i in range(args.n_clients)]
-        self.testsets = [get_dataset(args.dataset, args.datadir, self.datamap, i, False, args) for i in range(args.n_clients)]
+        self.trainsets = [get_dataset(args.dataset, args.datadir, self.datamap, i, True, args) for i in
+                          range(args.n_clients)]
+        self.testsets = [get_dataset(args.dataset, args.datadir, self.datamap, i, False, args) for i in
+                         range(args.n_clients)]
 
         # Add noise to global
         if args.noise > 0:
