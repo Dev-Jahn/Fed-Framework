@@ -5,11 +5,10 @@ import logging
 from contextlib import redirect_stdout
 import io
 import re
-import math
 
 from torchsummary import summary
 
-from models.cnns import *
+from pyfed.models.cnns import *
 
 
 def init_logger(name, logdir):

@@ -1,13 +1,9 @@
 from math import sqrt
 
-import torch
 import torch.nn.functional as F
 from torch.autograd import Variable
-from torch.utils.data import DataLoader
-from torchvision import transforms as transforms
-from torchvision.models import resnet50
 
-from data.datasets import *
+from pyfed.data.datasets import *
 
 DATASETS = {
     'mnist': MNIST_truncated,

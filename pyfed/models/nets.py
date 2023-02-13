@@ -1,9 +1,9 @@
 import logging
 
-from models.cnns import PerceptronModel, FcNet, SimpleCNN, SimpleCNNMNIST, ModerateCNNMNIST, ModerateCNN
-from models.resnet import ResNet9, ResNet18, ResNet50
-from models.vggmodel import vgg11, vgg16
-from models.wideresnet import WideResNet
+from pyfed.models.cnns import PerceptronModel, FcNet, SimpleCNN, SimpleCNNMNIST, ModerateCNNMNIST, ModerateCNN
+from pyfed.models.resnet import ResNet9, ResNet18, ResNet50
+from pyfed.models.vggmodel import vgg11, vgg16
+from pyfed.models.wideresnet import WideResNet
 
 logger = logging.getLogger(__name__)
 

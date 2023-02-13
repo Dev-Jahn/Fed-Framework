@@ -8,8 +8,8 @@ import numpy as np
 import torch
 import wandb
 
-from train.trainer import FederatedTrainer
-from utils import mkdirs, init_logger
+from pyfed.train.trainer import FederatedTrainer
+from pyfed.utils import mkdirs, init_logger
 
 DATASETS = ['mnist', 'fmnist', 'cifar10', 'svhn', 'celeba', 'femnist', 'generated', 'rcv1', 'SUSY', 'covtype', 'a9a']
 

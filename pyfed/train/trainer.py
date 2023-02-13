@@ -5,12 +5,12 @@ import torch
 import wandb
 from torch.utils.data import ConcatDataset, DataLoader
 
-from data.dataloader import get_dataset
-from data.partition import partition_data
-from metrics.basic import compute_accuracy
-from models.nets import init_nets
-from train.algs import FedAvg, FedProx, SCAFFOLD, FedNova, MOON
-from utils import save_model
+from pyfed.data.dataloader import get_dataset
+from pyfed.data.partition import partition_data
+from pyfed.metrics.basic import compute_accuracy
+from pyfed.models.nets import init_nets
+from pyfed.train.algs import FedAvg, FedProx, SCAFFOLD, FedNova, MOON
+from pyfed.utils import save_model
 
 ALGS = {
     'fedavg': FedAvg,
