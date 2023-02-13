@@ -1,7 +1,7 @@
 import os
 import logging
 from functools import partial
-from typing import Optional, Callable
+from typing import Optional, Callable, Type
 
 import urllib, shutil, zipfile, tarfile, gzip
 # import accimage
@@ -11,6 +11,7 @@ import numpy as np
 import pandas
 import torch
 import torch.utils.data as data
+from torch.utils.data import Dataset
 from torch.utils.model_zoo import tqdm
 from torchvision import get_image_backend
 from torchvision import transforms as transforms
@@ -24,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 IMG_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm', '.tif', '.tiff', '.webp')
 
+
 #
 # def accimage_loader(path):
 #     try:
@@ -32,6 +34,27 @@ IMG_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm', '.tif', '.tif
 #         # Potentially a decoding problem, fall back to PIL.Image
 #         return pil_loader(path)
 #
+
+def a_wrapper(cls: Type[Dataset]):
+    """
+    Creates a wrapped class with fixed __getitem__ method for albumentation compatibility
+
+    :param cls: Type[Dataset] - Any Dataset class inheriting pytorch Dataset class
+    :type cls: Type[Dataset]
+    :return: Wrapped Class with albumentation compatible transform
+    """
+
+    class WrappedDataset(cls):
+        def __getitem__(self, index):
+            img, target = self.data[index], self.targets[index]
+            if self.transform is not None:
+                img = self.transform(image=img)['image']
+            if self.target_transform is not None:
+                target = self.target_transform(target)
+            return img, target
+
+    return WrappedDataset
+
 
 def pil_loader(path):
     # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
@@ -219,12 +242,6 @@ class SVHN_custom(data.Dataset):
             data = data[self.dataidxs]
             target = target[self.dataidxs]
         return data, target
-
-    # def truncate_channel(self, index):
-    #     for i in range(index.shape[0]):
-    #         gs_index = index[i]
-    #         self.data[gs_index, :, :, 1] = 0.0
-    #         self.data[gs_index, :, :, 2] = 0.0
 
     def __getitem__(self, index):
         """
@@ -450,12 +467,6 @@ class CIFAR10_truncated(data.Dataset):
 
         return data, target
 
-    def truncate_channel(self, index):
-        for i in range(index.shape[0]):
-            gs_index = index[i]
-            self.data[gs_index, :, :, 1] = 0.0
-            self.data[gs_index, :, :, 2] = 0.0
-
     def __getitem__(self, index):
         """
         Args:
@@ -520,7 +531,7 @@ def download_url(url: str, root: str, filename: Optional[str] = None, md5: Optio
             if url[:5] == 'https':
                 url = url.replace('https:', 'http:')
                 logger.debug('Failed download. Trying https -> http instead.'
-                      ' Downloading ' + url + ' to ' + fpath)
+                             ' Downloading ' + url + ' to ' + fpath)
                 urllib.request.urlretrieve(
                     url, fpath,
                     reporthook=gen_bar_updater()

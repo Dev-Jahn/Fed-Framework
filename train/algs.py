@@ -6,7 +6,7 @@ import wandb
 from torch import optim
 from torch.utils.data import DataLoader
 
-from core.losses import build_loss
+from nn.modules.losses import build_loss
 from metrics.basic import AverageMeter, compute_accuracy
 from utils import save_model
 
@@ -157,6 +157,8 @@ class FedAvg(AlgBase):
         return nets_list
 
     def aggregate_weights(self, selected):
+        # TODO
+        # Fix to use einsum with partial(functools)
         # Model weight synchronization
         global_params = self.trainer.global_model.state_dict()
         if self.round == 1:
@@ -263,6 +265,21 @@ class SCAFFOLD(AlgBase):
 
 
 class FedNova(AlgBase):
+    def __init__(self, trainer, datamap, args):
+        super().__init__(trainer, datamap, args)
+        self.round = 0
+        self.criterion = build_loss(args.loss)
+
+    def train_single_local(self, net_idx, trainloader, testloader):
+        pass
+
+    def train_selected_locals(self, selected):
+        pass
+
+    def aggregate_weights(self, selected):
+        pass
+
+class MOON(AlgBase):
     def __init__(self, trainer, datamap, args):
         super().__init__(trainer, datamap, args)
         self.round = 0

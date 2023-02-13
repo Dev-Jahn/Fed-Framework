@@ -1,0 +1,5 @@
+scikit-learn~=1.2.0
+torch~=1.13.1
+PyHessian~=0.1
+wandb~=0.13.9
+plotly~=5.12.0

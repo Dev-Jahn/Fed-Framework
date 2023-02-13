@@ -10,9 +10,9 @@ def build_loss(name, *args, **kwargs):
     if name == 'ce':
         return CELossBase(*args, **kwargs)
     elif name == 'srip':
-        return SRIPLoss(*args, **kwargs)
+        return SRIP(*args, **kwargs)
     elif name == 'ocnn':
-        return OCNNLoss(*args, **kwargs)
+        return OCNN(*args, **kwargs)
     else:
         raise NotImplementedError(f'Unimplemented loss "{name}"')
 
@@ -31,7 +31,7 @@ class CELossBase(nn.CrossEntropyLoss):
         return super().forward(input, target), None
 
 
-class SRIPLoss(CELossBase):
+class SRIP(CELossBase):
     """
     From paper 'Can We Gain More from Orthogonality Regularizations in Training Deep CNNs?'
     (Nitin Bansal, Xiaohan Chen, Zhangyang Wang)
@@ -39,7 +39,7 @@ class SRIPLoss(CELossBase):
     """
 
     def __init__(self, *args, **kwargs):
-        super(SRIPLoss, self).__init__(*args, **kwargs)
+        super(SRIP, self).__init__(*args, **kwargs)
 
     def forward(self, input: Tensor, target: Tensor, *args, **kwargs):
         model = kwargs.get('model')
@@ -83,15 +83,16 @@ class SRIPLoss(CELossBase):
         return l2_reg
 
 
-class OCNNLoss(CELossBase):
+class OCNN(CELossBase):
     """
+    Orthogonal Convolutional Neural Network Loss
     From paper 'Orthogonal Convolutional Neural Networks'
     (Jiayun Wang, Yubei Chen, Rudrasis Chakraborty, Stella X. Yu)
     (https://arxiv.org/abs/1911.12207)
     """
 
     def __init__(self, *args, **kwargs):
-        super(OCNNLoss, self).__init__(*args, **kwargs)
+        super(OCNN, self).__init__(*args, **kwargs)
         self.device = None
 
     def forward(self, input: Tensor, target: Tensor, *args, **kwargs) -> tuple[Any, Union[Tensor, int]]:
@@ -142,3 +143,13 @@ class OCNNLoss(CELossBase):
         for i in range(temp.shape[0]):
             temp[i, np.floor(new_s ** 2 / 2).astype(int) + new_s ** 2 * i] = 1
         return torch.norm(Vmat @ torch.t(out) - torch.from_numpy(temp, ).float().to(self.device))
+
+class PCC(CELossBase):
+    """
+    Principal Curvature Correction Loss
+    """
+    def __init__(self, *args, **kwargs):
+        super(PCC, self).__init__(*args, **kwargs)
+
+    def forward(self, input: Tensor, target: Tensor, *args, **kwargs) -> tuple[Tensor, None]:
+

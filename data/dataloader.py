@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torchvision import transforms as transforms
+from torchvision.models import resnet50
 
 from data.datasets import *
 
@@ -53,7 +54,7 @@ def get_dataset(dataset_name: str, datadir, datamap, net_idx, train, args):
     # lambda functions for noise making
     if args.noise_type == 'space':
         noise = lambda net_idx: 0 if net_idx == args.n_clients - 1 else args.noise
-        noise_args = lambda net_idx: {'net_id': net_idx, 'total': args.n_clients - 1}
+        noise_args = lambda net_idx: {'net_idx': net_idx, 'total': args.n_clients - 1}
     else:
         noise = lambda net_idx: args.noise / (args.n_clients - 1) * net_idx
         noise_args = lambda net_idx: {}
@@ -62,7 +63,7 @@ def get_dataset(dataset_name: str, datadir, datamap, net_idx, train, args):
     if dataset_name in ('mnist', 'femnist', 'fmnist', 'svhn'):
         transform = transforms.Compose([
             transforms.ToTensor(),
-            AddGaussianNoise(0., noise(net_idx), **noise_args)
+            AddGaussianNoise(0., noise(net_idx), **noise_args(net_idx))
         ])
 
     elif dataset_name == 'cifar10':
@@ -76,16 +77,16 @@ def get_dataset(dataset_name: str, datadir, datamap, net_idx, train, args):
                 transforms.RandomCrop(32),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
-                AddGaussianNoise(0., noise(net_idx), **noise_args)
+                AddGaussianNoise(0., noise(net_idx), **noise_args(net_idx))
             ])
         else:
             transform = transforms.Compose([
                 transforms.ToTensor(),
-                AddGaussianNoise(0., noise(net_idx), **noise_args)
+                AddGaussianNoise(0., noise(net_idx), **noise_args(net_idx))
             ])
     else:
         transform = None
 
     return DATASETS[dataset_name](
-        datadir, dataidxs=datamap[net_idx] if datamap else None, train=train, transform=transform
+        datadir, dataidxs=datamap[net_idx] if train else None, train=train, transform=transform
     )
