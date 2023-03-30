@@ -122,26 +122,29 @@ class FCBlockVGG(nn.Module):
 
 
 class SimpleCNN(nn.Module):
-    def __init__(self, input_dim, hidden_dims, output_dim=10):
+    def __init__(self, hidden_dims=(256, 256), output_dim=10):
         super(SimpleCNN, self).__init__()
-        self.conv1 = nn.Conv2d(3, 6, 5)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 16, 5)
-
-        # for now, we hard coded this network
-        # i.e. we fix the number of hidden layers i.e. 2 layers
-        self.fc1 = nn.Linear(input_dim, hidden_dims[0])
-        self.fc2 = nn.Linear(hidden_dims[0], hidden_dims[1])
-        self.fc3 = nn.Linear(hidden_dims[1], output_dim)
+        self.features = nn.Sequential(
+            nn.Conv2d(3, 6, 5),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2, 2),
+            nn.Conv2d(6, 16, 5),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(2, 2),
+        )
+        input_dim = self.features(torch.zeros(1, 3, 32, 32)).view(1, -1).size(1)
+        self.classifier = nn.Sequential(
+            nn.Linear(input_dim, hidden_dims[0]),
+            nn.ReLU(inplace=True),
+            nn.Linear(hidden_dims[0], hidden_dims[1]),
+            nn.ReLU(inplace=True),
+            nn.Linear(hidden_dims[1], output_dim),
+        )
 
     def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
+        x = self.features(x)
         x = x.view(-1, 16 * 5 * 5)
-
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
+        x = self.classifier(x)
         return x
 
 
@@ -153,7 +156,6 @@ class PerceptronModel(nn.Module):
         self.fc1 = nn.Linear(input_dim, output_dim)
 
     def forward(self, x):
-
         x = self.fc1(x)
         return x
 
@@ -258,7 +260,6 @@ class LeNetContainer(nn.Module):
         x = self.fc1(x)
         x = self.fc2(x)
         return x
-
 
 
 ### Moderate size of CNN for CIFAR-10 dataset
@@ -449,5 +450,3 @@ class ModerateCNNContainer(nn.Module):
         x = self.conv_layer(x)
         x = x.view(x.size(0), -1)
         return x
-
-

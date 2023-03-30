@@ -1,4 +1,4 @@
-from functools import cache, lr_lru_cache_wrapper
+from functools import cache, _lru_cache_wrapper
 
 import numpy as np
 import torch

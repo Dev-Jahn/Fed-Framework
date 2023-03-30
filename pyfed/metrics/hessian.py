@@ -18,6 +18,9 @@
 # along with PyHessian.  If not, see <http://www.gnu.org/licenses/>.
 # *
 
+import numpy as np
+import torch
+from torch import autograd
 from torch.utils.data import DataLoader
 
 
@@ -29,31 +32,44 @@ class Hessian:
         iii) the estimated eigenvalue density
     """
 
-    def __init__(self, model, criterion, data_source, device='cuda'):
+    def __init__(self, model, criterion, dataset, batch_size=32, full=False, device='cuda'):
         """
         model: the model that needs Hessian information
         criterion: the loss function
-        data: a single batch of data, including inputs and its corresponding labels
-        dataloader: the data loader including multiple batches of data
+        dataset: pytorch Dataset compatible object, including inputs and its corresponding labels
+        batch_size: the batch size used for computation. Only used when n_samples is -1
+        full: if True, use all the data, otherwise, use a single batched data
+        device: the device used for computation
         """
         self.model = model.eval()  # make model is in evaluation mode
         self.criterion = criterion
         self.device = device
-        self.data_source = data_source
-        self.use_loader = isinstance(data_source, DataLoader)
+        self.dataset = dataset
+        self.dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=4)
+        self.full = full
 
         # pre-compute for single batch case to simplify the computation.
-        if not self.use_loader:
-            self.inputs, self.targets = self.data_source[0].to(self.device), self.data_source[1].to(self.device)
+        if not full:
+            self.inputs, self.targets = next(iter(self.dataloader))
+            self.inputs, self.targets = self.inputs.to(self.device), self.targets.to(self.device)
             # if we only compute the Hessian information for a single batch data, we can re-use the gradients.
             outputs = self.model(self.inputs)
             loss = self.criterion(outputs, self.targets)
-            loss.backward(create_graph=True)
+            # loss.backward(create_graph=True)
+            self.gradsH = autograd.grad(loss, self.model.parameters(), create_graph=True)
+            self.params = list(self.model.parameters())
 
-        # this step is used to extract the parameters from the model
-        params, gradsH = get_params_grad(self.model)
-        self.params = params
-        self.gradsH = gradsH  # gradient used for Hessian computation
+    def __repr__(self):
+        return str(
+            'Hessian Calculator\n'
+            f'\t{"Model":^11} : {self.model.__class__.__name__}\n'
+            f'\t{"Criterion":^11} : {str(self.criterion)}\n'
+            f'\t{"Dataset":^11} : {self.dataset.__class__.__name__}\n'
+            f'\t{"Device":^11} : {self.device}'
+        )
+
+    def __str__(self):
+        return self.__repr__()
 
     def dataloader_hv_product(self, v):
         """
@@ -61,7 +77,7 @@ class Hessian:
         """
         num_data = 0  # count the number of datum points in the dataloader
         THv = [torch.zeros(p.size()).to(self.device) for p in self.params]  # accumulate result
-        for inputs, targets in self.data_source:
+        for inputs, targets in self.dataset:
             self.model.zero_grad()
             tmp_num_data = inputs.size(0)
             outputs = self.model(inputs.to(self.device))
@@ -77,14 +93,13 @@ class Hessian:
         eigenvalue = group_product(THv, v).cpu().item()
         return eigenvalue, THv
 
-    def eigenvalues(self, maxIter=100, tol=1e-3, top_n=1):
+    def eigenvalues(self, max_iter=100, tol=1e-3, top_n=1, seed=42, create_graph=False):
         """
         compute the top_n eigenvalues using power iteration method
         maxIter: maximum iterations used to compute each single eigenvalue
         tol: the relative tolerance between two consecutive eigenvalue computations from power iteration
         top_n: top top_n eigenvalues will be computed
         """
-
         assert top_n >= 1
 
         eigenvalues = []
@@ -92,29 +107,30 @@ class Hessian:
 
         computed_dim = 0
 
+        torch.manual_seed(seed)
         while computed_dim < top_n:
             eigenvalue = None
-            v = [torch.randn(p.size()).to(self.device) for p in self.params
-                 ]  # generate random vector
-            v = normalization(v)  # normalize the vector
+            # generate random vector
+            v = [torch.randn(p.size()).to(self.device) for p in self.params]
+            # normalize
+            v = normalize(v)
 
-            for i in range(maxIter):
+            for i in range(max_iter):
                 v = orthnormal(v, eigenvectors)
                 self.model.zero_grad()
 
-                if self.use_loader:
+                if self.full:
                     tmp_eigenvalue, Hv = self.dataloader_hv_product(v)
                 else:
-                    Hv = hessian_vector_product(self.gradsH, self.params, v)
+                    Hv = hessian_vector_product(self.gradsH, self.params, v, create_graph=create_graph)
                     tmp_eigenvalue = group_product(Hv, v).cpu().item()
 
-                v = normalization(Hv)
+                v = normalize(Hv)
 
                 if eigenvalue is None:
                     eigenvalue = tmp_eigenvalue
                 else:
-                    if abs(eigenvalue - tmp_eigenvalue) / (abs(eigenvalue) +
-                                                           1e-6) < tol:
+                    if abs(eigenvalue - tmp_eigenvalue) / (abs(eigenvalue) + 1e-6) < tol:
                         break
                     else:
                         eigenvalue = tmp_eigenvalue
@@ -124,7 +140,7 @@ class Hessian:
 
         return eigenvalues, eigenvectors
 
-    def trace(self, maxIter=100, tol=1e-3):
+    def trace(self, max_iter=100, tol=1e-3, seed=42):
         """
         compute the trace of hessian using Hutchinson's method
         maxIter: maximum iterations used to compute trace
@@ -134,8 +150,8 @@ class Hessian:
         device = self.device
         trace_vhv = []
         trace = 0.
-
-        for i in range(maxIter):
+        torch.manual_seed(seed)
+        for i in range(max_iter):
             self.model.zero_grad()
             v = [
                 torch.randint_like(p, high=2, device=device)
@@ -145,7 +161,7 @@ class Hessian:
             for v_i in v:
                 v_i[v_i == 0] = -1
 
-            if self.use_loader:
+            if self.full:
                 _, Hv = self.dataloader_hv_product(v)
             else:
                 Hv = hessian_vector_product(self.gradsH, self.params, v)
@@ -157,7 +173,7 @@ class Hessian:
 
         return trace_vhv
 
-    def density(self, n_iter=100, n_slq=1):
+    def density(self, n_iter=100, n_slq=1, seed=42):
         """
         compute estimated eigenvalue density using stochastic lanczos algorithm (SLQ)
         iter: number of iterations used to compute trace
@@ -167,12 +183,13 @@ class Hessian:
         eigen_list_full = []
         weight_list_full = []
 
+        torch.manual_seed(seed)
         for k in range(n_slq):
             v = [torch.randint_like(p, high=2, device=device) for p in self.params]
             # Generate Rademacher random variables
             for v_i in v:
                 v_i[v_i == 0] = -1
-            v = normalization(v)
+            v = normalize(v)
 
             # Standard lanczos algorithm initlization
             v_list = [v]
@@ -184,7 +201,7 @@ class Hessian:
                 self.model.zero_grad()
                 w_prime = [torch.zeros(p.size()).to(device) for p in self.params]
                 if i == 0:
-                    if self.use_loader:
+                    if self.full:
                         _, w_prime = self.dataloader_hv_product(v)
                     else:
                         w_prime = hessian_vector_product(self.gradsH, self.params, v)
@@ -204,7 +221,7 @@ class Hessian:
                         w = [torch.randn(p.size()).to(device) for p in self.params]
                         v = orthnormal(w, v_list)
                         v_list.append(v)
-                    if self.use_loader:
+                    if self.full:
                         _, w_prime = self.dataloader_hv_product(v)
                     else:
                         w_prime = hessian_vector_product(
@@ -230,12 +247,6 @@ class Hessian:
         return eigen_list_full, weight_list_full
 
 
-import torch
-import math
-from torch.autograd import Variable
-import numpy as np
-
-
 def group_product(xs, ys):
     """
     the inner product of two lists of variables xs,ys
@@ -254,20 +265,20 @@ def group_add(params, update, alpha=1):
     :return:
     """
     for i, p in enumerate(params):
-        params[i].data_source.add_(update[i] * alpha)
+        params[i].data.add_(update[i] * alpha)
     return params
 
 
-def normalization(v):
+def normalize(ts, eps=1e-12):
     """
-    normalization of a list of vectors
+    normalization of a list of tensors
+    view list of tensors as a single concatenated and flattened vector as
+    :param ts: list of tensors
     return: normalized vectors v
     """
-    s = group_product(v, v)
-    s = s ** 0.5
-    s = s.cpu().item()
-    v = [vi / (s + 1e-6) for vi in v]
-    return v
+    s = torch.sqrt(sum([torch.sum(t ** 2) for t in ts])) + 1e-12
+    ts = [t / (s + eps) for t in ts]
+    return ts
 
 
 def get_params_grad(model):
@@ -284,15 +295,19 @@ def get_params_grad(model):
     return params, grads
 
 
-def hessian_vector_product(gradsH, params, v):
+def hessian_vector_product(gradsH, params, v, create_graph=False):
     """
-    compute the hessian vector product of Hv, where
-    gradsH is the gradient at the current point,
-    params is the corresponding variables,
-    v is the vector.
+    compute the hessian vector product certain point and vector
+    :param gradsH: the gradient at the current point,
+    :param params: the corresponding variables,
+    :param v: the vector to be multiplied with the hessian,
+    :param create_graph: whether to create a new graph. set to True to compute the third order derivative.
     """
-    hv = torch.autograd.grad(gradsH, params, grad_outputs=v, only_inputs=True, retain_graph=True)
-    return hv
+    # only_inputs argument is set to True by default and now deprecated
+    return torch.autograd.grad(
+        gradsH, params, grad_outputs=v,
+        retain_graph=True, create_graph=create_graph
+    )
 
 
 def orthnormal(w, v_list):
@@ -302,4 +317,4 @@ def orthnormal(w, v_list):
     """
     for v in v_list:
         w = group_add(w, v, alpha=-group_product(w, v))
-    return normalization(w)
+    return normalize(w)
