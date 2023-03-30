@@ -5,11 +5,23 @@ import logging
 from contextlib import redirect_stdout
 import io
 import re
-import math
+import random
 
+import numpy as np
 from torchsummary import summary
 
 from models.cnns import *
+
+
+def set_random_state(seed, strict=False):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # if use multi-GPU
+    if strict:
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
 
 def init_logger(name, logdir):
@@ -82,7 +94,7 @@ def check_disk_space(model, n_clients, comm_round, save_round, save_local, epoch
         model, n_clients, comm_round, save_round,
         save_local, epoch, save_epoch
     )
-    print('#'*80)
+    print('#' * 80)
     print(f'You need {psize} of disk space.')
     if not check_yes_or_no('Do you want to proceed?'):
         exit(0)
@@ -95,3 +107,21 @@ def check_yes_or_no(question):
             return True
         elif ans in ['n', 'N']:
             return False
+
+
+def chunk_list(l, n):
+    """
+    Split list l into n chunks so that the sum of the chunk is equally distributed.
+    :param l: list of integers
+    :param n: number of chunks
+    :return: list of lists
+    """
+    avg = sum(l) / float(n)
+    out = []
+    last = 0.0
+
+    while last < len(l):
+        out.append(l[int(last):int(last + avg)])
+        last += avg
+
+    return out
