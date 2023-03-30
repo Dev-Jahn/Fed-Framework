@@ -13,13 +13,12 @@ import torch
 import torch.utils.data as data
 from torch.utils.data import Dataset
 from torch.utils.model_zoo import tqdm
-from torchvision import get_image_backend
 from torchvision import transforms as transforms
 from torchvision.datasets import MNIST, CIFAR10, SVHN, FashionMNIST
 from torchvision.datasets.vision import VisionDataset
 from torchvision.datasets.utils import download_file_from_google_drive, check_integrity
 
-from utils import mkdirs
+from pyfed.utils import mkdirs
 
 logger = logging.getLogger(__name__)
 

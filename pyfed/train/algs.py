@@ -6,9 +6,9 @@ import wandb
 from torch import optim
 from torch.utils.data import DataLoader
 
-from nn.modules.losses import build_loss
-from metrics.basic import AverageMeter, compute_accuracy
-from utils import save_model
+from pyfed.nn.modules.losses import build_loss
+from pyfed.metrics.basic import AverageMeter, compute_accuracy
+from pyfed.utils import save_model
 
 logger = logging.getLogger(__name__)
 

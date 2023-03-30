@@ -10,7 +10,7 @@ import random
 import numpy as np
 from torchsummary import summary
 
-from models.cnns import *
+from pyfed.models.cnns import *
 
 
 def set_random_state(seed, strict=False):

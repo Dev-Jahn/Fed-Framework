@@ -5,8 +5,8 @@ from math import pow
 import torch
 from torch import optim, nn
 
-from metrics.basic import compute_accuracy
-from data.dataloader import get_dataset
+from pyfed.metrics.basic import compute_accuracy
+from pyfed.data.dataloader import get_dataset
 
 logger = logging.getLogger()
 

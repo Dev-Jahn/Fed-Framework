@@ -8,10 +8,10 @@ import numpy as np
 import torch
 from sklearn.datasets import load_svmlight_file
 
-from data.datasets import load_mnist_data, load_fmnist_data, \
+from pyfed.data.datasets import load_mnist_data, load_fmnist_data, \
     load_svhn_data, load_cifar10_data, load_celeba_data, \
     load_femnist_data
-from utils import mkdirs
+from pyfed.utils import mkdirs
 
 logger = logging.getLogger(__name__)
 
