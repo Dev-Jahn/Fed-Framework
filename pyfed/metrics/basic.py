@@ -1,8 +1,10 @@
 from functools import cache, _lru_cache_wrapper
+import warnings
 
 import numpy as np
 import torch
 import sklearn
+from sklearn.metrics._classification import UndefinedMetricWarning
 import plotly.graph_objects as go
 
 
@@ -13,7 +15,8 @@ class ClassificationMetrics:
     Efficient implementation for n>>d case, when n is n_samples and d is n_classes
     """
 
-    def __init__(self, n_classes, pos_label=1, average='binary'):
+    def __init__(self, n_classes, pos_label=1, average='binary', warn=False):
+        self.warn=warn
         if n_classes > 2:
             assert average in [None, 'micro', 'macro', 'weighted']
         self.n_classes, self.pos_label, self.average = n_classes, pos_label, average
@@ -31,7 +34,7 @@ class ClassificationMetrics:
         self.clear_caches()
 
     def update(self, true, pred):
-        self.confusion += sklearn.metrics.confusion_matrix(true, pred)
+        self.confusion += sklearn.metrics.confusion_matrix(true, pred, labels=range(self.n_classes))
         self.clear_caches()
 
     @cache
@@ -73,7 +76,8 @@ class ClassificationMetrics:
         if op == 'f1':
             denom = (self._pred + self._true) / 2
         if np.any(denom == 0):
-            raise ArithmeticError('Precision, recall and F-1 score when denominator is zero is not defined.')
+            if self.warn: warnings.warn('Precision, recall and F-1 score when denominator is zero is not defined.', UndefinedMetricWarning)
+            denom = denom+1e-15
 
         raw = self._tp / denom
         if self.average is None:
