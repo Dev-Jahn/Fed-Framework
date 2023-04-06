@@ -27,13 +27,36 @@ class CELossBase(nn.CrossEntropyLoss):
                  reduce=None, reduction: str = 'mean') -> None:
         super(CELossBase, self).__init__(weight, size_average, ignore_index, reduce, reduction)
 
-    def forward(self, input: Tensor, target: Tensor, *args, **kwargs) -> tuple[Tensor, None]:
-        return super().forward(input, target), None
+    def forward(self, input: Tensor, target: Tensor, *args, **kwargs) -> Tensor:
+        return super().forward(input, target)
+
+
+class KDLoss(CELossBase):
+    """
+    From paper, 'Distilling the Knowledge in a Neural Network'
+    (Geoffry Hinton, Oriol Vinyals, Jeff Dean)
+    (https://arxiv.org/pdf/1503.02531.pdf)
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(KDLoss, self).__init__(*args, **kwargs)
+
+    def forward(self, input: Tensor, target: Tensor,
+                soft_target: Tensor = None, lambda_: float = 0.5, temp: float = 1.0, *args, **kwargs) -> Tensor:
+        assert soft_target is not None
+        assert 0 <= lambda_ <= 1
+        celoss = super().forward(input, target)
+        kdloss = F.kl_div(
+            F.log_softmax(input / temp, dim=1),
+            F.softmax(soft_target / temp, dim=1),
+            reduction='batchmean'
+        ) * (temp ** 2)
+        return celoss * (1 - lambda_) + kdloss * lambda_
 
 
 class SRIP(CELossBase):
     """
-    From paper 'Can We Gain More from Orthogonality Regularizations in Training Deep CNNs?'
+    From paper, 'Can We Gain More from Orthogonality Regularizations in Training Deep CNNs?'
     (Nitin Bansal, Xiaohan Chen, Zhangyang Wang)
     (https://arxiv.org/abs/1810.09102)
     """
@@ -46,9 +69,9 @@ class SRIP(CELossBase):
         decay = kwargs.get('decay')
         assert model and decay
 
-        celoss, _ = super().forward(input, target)
+        celoss = super().forward(input, target)
         oloss = self.l2_reg_ortho(model)
-        return celoss + decay * oloss, oloss
+        return celoss + decay * oloss
 
     @staticmethod
     def l2_reg_ortho(model):
@@ -95,13 +118,13 @@ class OCNN(CELossBase):
         super(OCNN, self).__init__(*args, **kwargs)
         self.device = None
 
-    def forward(self, input: Tensor, target: Tensor, *args, **kwargs) -> tuple[Any, Union[Tensor, int]]:
+    def forward(self, input: Tensor, target: Tensor, *args, **kwargs) -> Tensor:
         model = kwargs.get('model')
         self.device = next(model.parameters()).device
         decay = kwargs.get('decay')
         assert model and decay
 
-        celoss, _ = super().forward(input, target)
+        celoss = super().forward(input, target)
         # TODO Model-wise tweak needed
         # 1x1 Conv
         diffs = [
@@ -114,7 +137,7 @@ class OCNN(CELossBase):
         # Conv2 (Experimental)
         # diffs += [v for k, v in list(model.named_modules()) if 'conv2' in k]
         oloss = sum(diffs)
-        return celoss + decay * oloss, oloss
+        return celoss + decay * oloss
 
     def orth_dist(self, mat, stride=None):
         mat = mat.reshape((mat.shape[0], -1))
@@ -144,12 +167,14 @@ class OCNN(CELossBase):
             temp[i, np.floor(new_s ** 2 / 2).astype(int) + new_s ** 2 * i] = 1
         return torch.norm(Vmat @ torch.t(out) - torch.from_numpy(temp, ).float().to(self.device))
 
+
 class PCC(CELossBase):
     """
     Principal Curvature Correction Loss
     """
+
     def __init__(self, *args, **kwargs):
         super(PCC, self).__init__(*args, **kwargs)
 
-    def forward(self, input: Tensor, target: Tensor, *args, **kwargs) -> tuple[Tensor, None]:
-
+    def forward(self, input: Tensor, target: Tensor, *args, **kwargs) -> Tensor:
+        raise NotImplementedError

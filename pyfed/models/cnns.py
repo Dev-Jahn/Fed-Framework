@@ -122,7 +122,7 @@ class FCBlockVGG(nn.Module):
 
 
 class SimpleCNN(nn.Module):
-    def __init__(self, hidden_dims=(256, 256), output_dim=10):
+    def __init__(self, hidden_dims=(256, 256), num_classes=10):
         super(SimpleCNN, self).__init__()
         self.features = nn.Sequential(
             nn.Conv2d(3, 6, 5),
@@ -138,7 +138,7 @@ class SimpleCNN(nn.Module):
             nn.ReLU(inplace=True),
             nn.Linear(hidden_dims[0], hidden_dims[1]),
             nn.ReLU(inplace=True),
-            nn.Linear(hidden_dims[1], output_dim),
+            nn.Linear(hidden_dims[1], num_classes),
         )
 
     def forward(self, x):

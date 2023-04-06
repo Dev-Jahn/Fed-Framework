@@ -49,11 +49,11 @@ def init_nets(dropout_p, n_clients, args):
             net = vgg11()
         elif args.arch == "simple-cnn":
             if args.dataset in ("cifar10", "cinic10", "svhn"):
-                net = SimpleCNN(input_dim=(16 * 5 * 5), hidden_dims=[120, 84], output_dim=10)
+                net = SimpleCNN(input_dim=(16 * 5 * 5), hidden_dims=[120, 84], num_classes=10)
             elif args.dataset in ("mnist", 'femnist', 'fmnist'):
                 net = SimpleCNNMNIST(input_dim=(16 * 4 * 4), hidden_dims=[120, 84], output_dim=10)
             elif args.dataset == 'celeba':
-                net = SimpleCNN(input_dim=(16 * 5 * 5), hidden_dims=[120, 84], output_dim=2)
+                net = SimpleCNN(input_dim=(16 * 5 * 5), hidden_dims=[120, 84], num_classes=2)
         elif args.arch == "vgg9":
             if args.dataset in ("mnist", 'femnist'):
                 net = ModerateCNNMNIST()

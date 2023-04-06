@@ -6,7 +6,7 @@ import wandb
 from torch import optim
 from torch.utils.data import DataLoader
 
-from pyfed.nn.modules.losses import build_loss
+from pyfed.nn.losses import build_loss
 from pyfed.metrics.basic import AverageMeter, compute_accuracy
 from pyfed.utils import save_model
 
